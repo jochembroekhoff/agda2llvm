@@ -1,0 +1,16 @@
+# Cabal
+dist
+dist-newstyle
+
+# Stack
+.stack-work
+*~
+
+# Agda
+*.agdai
+MAlonzo
+*.agda#
+.#*.agda
+
+# VS Code
+/.vscode
