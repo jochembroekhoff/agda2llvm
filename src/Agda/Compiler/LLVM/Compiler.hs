@@ -4,6 +4,7 @@ import Agda.Compiler.Backend
 import Agda.Compiler.LLVM.Syntax
 import Agda.Interaction.Options (OptDescr)
 import Control.DeepSeq (NFData)
+import Debug.Trace (trace)
 import GHC.Generics (Generic)
 
 llvmBackendName = "LLVM"
@@ -11,7 +12,7 @@ llvmBackendName = "LLVM"
 llvmBackend :: Backend
 llvmBackend = Backend llvmBackend'
 
-llvmBackend' :: Backend' LLVMOptions LLVMOptions LLVMEnv LLVMModule (Maybe LLVMDef)
+llvmBackend' :: Backend' LLVMOptions LLVMOptions LLVMEnv LLVMModule (Maybe LLVMEntry)
 llvmBackend' =
   Backend'
     { backendName = llvmBackendName
@@ -52,8 +53,8 @@ llvmPreCompile :: LLVMOptions -> TCM LLVMOptions
 llvmPreCompile = return
 
 --- Module & defs compilation ---
-llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [Maybe LLVMDef] -> TCM LLVMModule
-llvmPostModule _ _ main m defs = return $ LLVMModule {modDefs = []}
+llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [Maybe LLVMEntry] -> TCM LLVMModule
+llvmPostModule _ _ main m defs = trace ("Defs: " ++ show defs) $ return $ LLVMModule {entries = []}
 
-llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM (Maybe LLVMDef)
-llvmCompileDef _ _ _ def = return $ Just LLVMDef {name = "dsf"}
+llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM (Maybe LLVMEntry)
+llvmCompileDef _ _ _ def = return $ Just LLVMFnDecl {fnSign = LLVMFnSign {fnName = "Hello", fnType = LLVMSizedInt 64}}

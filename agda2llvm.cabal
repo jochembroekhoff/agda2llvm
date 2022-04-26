@@ -24,6 +24,7 @@ source-repository head
 library
   exposed-modules:
       Agda.Compiler.LLVM.Compiler
+      Agda.Compiler.LLVM.Pprint
       Agda.Compiler.LLVM.Syntax
   other-modules:
       Paths_agda2llvm
@@ -36,6 +37,7 @@ library
       Agda >=2.6.2.1 && <2.6.3
     , base >=4.7 && <5
     , deepseq >=1.4.5
+    , ghc
   default-language: Haskell2010
 
 executable agda2llvm-exe
@@ -53,6 +55,7 @@ executable agda2llvm-exe
     , agda2llvm
     , base >=4.7 && <5
     , deepseq >=1.4.5
+    , ghc
   default-language: Haskell2010
 
 test-suite agda2llvm-test
@@ -71,4 +74,5 @@ test-suite agda2llvm-test
     , agda2llvm
     , base >=4.7 && <5
     , deepseq >=1.4.5
+    , ghc
   default-language: Haskell2010
