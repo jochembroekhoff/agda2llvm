@@ -5,20 +5,19 @@ module Agda.Compiler.LLVM.Compiler where
 
 import Agda.Compiler.Backend
 import Agda.Compiler.Common (compileDir)
+import Agda.Compiler.LLVM.Options (LLVMOptions, defaultLLVMOptions)
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.Syntax
 import Agda.Compiler.LLVM.SyntaxUtil (llvmIdent)
-import Agda.Compiler.LLVM.Wiring (fileIntermediate)
+import Agda.Compiler.LLVM.Wiring (callLLVM, fileIntermediate)
 import Agda.Interaction.Options (OptDescr)
 import Agda.Utils.Pretty (prettyShow)
 import Agda.Utils.Tuple (mapFstM)
-import Control.DeepSeq (NFData)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 import Debug.Trace (trace)
-import GHC.Generics (Generic)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath (takeDirectory)
 
@@ -44,16 +43,7 @@ llvmBackend' =
     , mayEraseType = const $ return True
     }
 
---- Options ---
-data LLVMOptions =
-  LLVMOptions
-    {
-    }
-  deriving (Generic, NFData)
-
-defaultLLVMOptions :: LLVMOptions
-defaultLLVMOptions = LLVMOptions {}
-
+--- CLI flags ---
 llvmCommandLineFlags :: [OptDescr (Flag LLVMOptions)]
 llvmCommandLineFlags = []
 
@@ -71,10 +61,10 @@ llvmPostCompile :: LLVMOptions -> IsMain -> Map ModuleName LLVMModule -> TCM ()
 llvmPostCompile opts isMain modules = do
   let modules' = Map.map llvmPretty modules
   modules'' <- traverse (mapFstM fileIntermediate) $ Map.toList modules'
-  liftIO $ do
-    traverse (createDirectoryIfMissing True . takeDirectory . fst) modules''
-    traverse (uncurry writeFile) modules''
-  liftIO $ do putStrLn "TODO: call llvm/clang, respect @isMain@"
+  liftIO
+    do traverse (createDirectoryIfMissing True . takeDirectory . fst) modules''
+       traverse (uncurry writeFile) modules''
+  callLLVM opts isMain (map fst modules'')
 
 --- Module & defs compilation ---
 llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [Maybe LLVMEntry] -> TCM LLVMModule
@@ -82,11 +72,11 @@ llvmPostModule _ _ main m defs = do
   d <- compileDir
   let m' = mnameToList m
   interm <- fileIntermediate m
-  liftIO $ do
-    putStrLn $ "Module: " ++ prettyShow m'
-    putStrLn $ "IsMain: " ++ show (main == IsMain)
-    putStrLn $ "CompileDir: " ++ show d
-    putStrLn $ "IntermediateFile: " ++ show interm
+  liftIO
+    do putStrLn $ "Module: " ++ prettyShow m'
+       putStrLn $ "IsMain: " ++ show (main == IsMain)
+       putStrLn $ "CompileDir: " ++ show d
+       putStrLn $ "IntermediateFile: " ++ show interm
   return $ LLVMModule {entries = catMaybes defs}
 
 llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM (Maybe LLVMEntry)

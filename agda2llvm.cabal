@@ -24,6 +24,7 @@ source-repository head
 library
   exposed-modules:
       Agda.Compiler.LLVM.Compiler
+      Agda.Compiler.LLVM.Options
       Agda.Compiler.LLVM.Pprint
       Agda.Compiler.LLVM.Syntax
       Agda.Compiler.LLVM.SyntaxUtil
@@ -33,6 +34,7 @@ library
   hs-source-dirs:
       src
   default-extensions:
+      BlockArguments
       DeriveAnyClass
       DeriveGeneric
   build-depends:
@@ -52,6 +54,7 @@ executable agda2llvm-exe
   hs-source-dirs:
       app
   default-extensions:
+      BlockArguments
       DeriveAnyClass
       DeriveGeneric
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
@@ -74,6 +77,7 @@ test-suite agda2llvm-test
   hs-source-dirs:
       test
   default-extensions:
+      BlockArguments
       DeriveAnyClass
       DeriveGeneric
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
