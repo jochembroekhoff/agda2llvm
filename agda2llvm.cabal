@@ -27,6 +27,7 @@ library
       Agda.Compiler.LLVM.Pprint
       Agda.Compiler.LLVM.Syntax
       Agda.Compiler.LLVM.SyntaxUtil
+      Agda.Compiler.LLVM.Wiring
   other-modules:
       Paths_agda2llvm
   hs-source-dirs:
@@ -37,7 +38,10 @@ library
   build-depends:
       Agda >=2.6.2.1 && <2.6.3
     , base >=4.7 && <5
+    , containers
     , deepseq >=1.4.5
+    , directory
+    , filepath >=1.4 && <2
     , ghc
   default-language: Haskell2010
 
@@ -55,7 +59,10 @@ executable agda2llvm-exe
       Agda >=2.6.2.1 && <2.6.3
     , agda2llvm
     , base >=4.7 && <5
+    , containers
     , deepseq >=1.4.5
+    , directory
+    , filepath >=1.4 && <2
     , ghc
   default-language: Haskell2010
 
@@ -74,6 +81,9 @@ test-suite agda2llvm-test
       Agda >=2.6.2.1 && <2.6.3
     , agda2llvm
     , base >=4.7 && <5
+    , containers
     , deepseq >=1.4.5
+    , directory
+    , filepath >=1.4 && <2
     , ghc
   default-language: Haskell2010

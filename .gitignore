@@ -6,11 +6,16 @@ dist-newstyle
 .stack-work
 *~
 
-# Agda
+# Agda (general)
 *.agdai
-MAlonzo
 *.agda#
 .#*.agda
+
+# Agda (MAlonzo back-end)
+MAlonzo
+
+# Agda (LLVM back-end)
+.agda2llvm
 
 # VS Code
 /.vscode

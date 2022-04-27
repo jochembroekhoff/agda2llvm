@@ -24,6 +24,9 @@ dependencies:
 - Agda >= 2.6.2.1 && < 2.6.3
 - deepseq >= 1.4.5
 - ghc
+- filepath >= 1.4 && < 2
+- containers
+- directory
 
 library:
   source-dirs: src

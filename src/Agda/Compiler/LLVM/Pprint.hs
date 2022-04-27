@@ -24,7 +24,7 @@ instance LLVMPretty LLVMFnSign where
       fnArgs' = intercalate ", " (map (\(k, t) -> llvmPretty t ++ " %" ++ llvmPretty k) fnArgs)
 
 instance LLVMPretty LLVMType where
-  llvmPretty (LLVMVoid) = "void"
+  llvmPretty LLVMVoid = "void"
   llvmPretty (LLVMFn tRet tParams) = llvmPretty tRet ++ " (" ++ intercalate ", " (map llvmPretty tParams)
   llvmPretty (LLVMSizedInt sz) = 'i' : show sz
   llvmPretty (LLVMPtr t) = llvmPretty t ++ "*"
