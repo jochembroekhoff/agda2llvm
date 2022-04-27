@@ -1,9 +1,15 @@
 module Agda.Compiler.LLVM.Compiler where
 
 import Agda.Compiler.Backend
+import Agda.Compiler.Common (compileDir)
+import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.Syntax
+import Agda.Compiler.LLVM.SyntaxUtil (llvmIdent)
 import Agda.Interaction.Options (OptDescr)
+import Agda.Utils.Pretty (prettyShow)
 import Control.DeepSeq (NFData)
+import Control.Monad.IO.Class (MonadIO(liftIO))
+import Data.Maybe (catMaybes)
 import Debug.Trace (trace)
 import GHC.Generics (Generic)
 
@@ -54,7 +60,21 @@ llvmPreCompile = return
 
 --- Module & defs compilation ---
 llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [Maybe LLVMEntry] -> TCM LLVMModule
-llvmPostModule _ _ main m defs = trace ("Defs: " ++ show defs) $ return $ LLVMModule {entries = []}
+llvmPostModule _ _ main m defs = do
+  d <- compileDir
+  let m' = mnameToList m
+  liftIO $ do
+    putStrLn $ "Module: " ++ prettyShow m'
+    putStrLn $ "IsMain: " ++ show (main == IsMain)
+    putStrLn $ "CompileDir: " ++ show d
+  return $ LLVMModule {entries = catMaybes defs}
 
 llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM (Maybe LLVMEntry)
-llvmCompileDef _ _ _ def = return $ Just LLVMFnDecl {fnSign = LLVMFnSign {fnName = "Hello", fnType = LLVMSizedInt 64}}
+llvmCompileDef _ _ _ def = do
+  let t = LLVMPtr $ LLVMArray 4 (LLVMStruct True [LLVMSizedInt 8])
+  let res =
+        LLVMFnDefn
+          { fnSign = LLVMFnSign {fnName = llvmIdent "Hello", fnType = t, fnArgs = []}
+          , body = [LLVMBlock "begin" [LLVMRet $ Just $ LLVMLit $ LLVMNull t]]
+          }
+  return (Just res)

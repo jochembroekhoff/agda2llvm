@@ -1,5 +1,11 @@
 module Agda.Compiler.LLVM.Syntax where
 
+newtype LLVMIdent =
+  LLVMIdent String
+
+instance Show LLVMIdent where
+  show (LLVMIdent ident) = ident
+
 data LLVMModule =
   LLVMModule
     { entries :: [LLVMEntry]
@@ -18,17 +24,31 @@ data LLVMEntry
 
 data LLVMFnSign =
   LLVMFnSign
-    { fnName :: String
+    { fnName :: LLVMIdent
     , fnType :: LLVMType
+    , fnArgs :: [(LLVMType, LLVMIdent)]
     }
   deriving (Show)
 
 data LLVMType
-  = LLVMSizedInt
+  = LLVMVoid
+  | LLVMFn
+      { fnRet :: LLVMType
+      , fnParams :: [LLVMType]
+      }
+  | LLVMSizedInt
       { size :: Int
       }
   | LLVMPtr
       { ptrOf :: LLVMType
+      }
+  | LLVMArray
+      { arrayElems :: Int
+      , arrayType :: LLVMType
+      }
+  | LLVMStruct
+      { structPacked :: Bool
+      , structFields :: [LLVMType]
       }
   deriving (Show)
 
@@ -39,12 +59,10 @@ data LLVMBlock =
     }
   deriving (Show)
 
-data LLVMInstruction
-  = LLVMRetVoid
-  | LLVMRetValue
-      { returnType :: LLVMType
-      , returnValue :: LLVMValue
-      }
+data LLVMInstruction =
+  LLVMRet
+    { returnValue :: Maybe LLVMValue
+    }
   deriving (Show)
 
 data LLVMValue
@@ -58,11 +76,11 @@ data LLVMValue
 
 data LLVMRef
   = LLVMLocal
-      { refName :: String
+      { refName :: LLVMIdent
       , refType :: LLVMType
       }
   | LLVMGlobal
-      { refName :: String
+      { refName :: LLVMIdent
       , refType :: LLVMType
       }
   deriving (Show)

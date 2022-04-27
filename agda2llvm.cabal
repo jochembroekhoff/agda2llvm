@@ -26,6 +26,7 @@ library
       Agda.Compiler.LLVM.Compiler
       Agda.Compiler.LLVM.Pprint
       Agda.Compiler.LLVM.Syntax
+      Agda.Compiler.LLVM.SyntaxUtil
   other-modules:
       Paths_agda2llvm
   hs-source-dirs:
