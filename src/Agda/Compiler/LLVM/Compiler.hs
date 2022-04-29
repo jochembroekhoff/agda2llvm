@@ -11,6 +11,8 @@ import Agda.Compiler.LLVM.Syntax
 import Agda.Compiler.LLVM.SyntaxUtil (llvmIdent)
 import Agda.Compiler.LLVM.Wiring (callLLVM, fileIntermediate)
 import Agda.Interaction.Options (OptDescr)
+import Agda.Utils.Impossible (__IMPOSSIBLE__)
+import Agda.Utils.Lens
 import Agda.Utils.Pretty (prettyShow)
 import Agda.Utils.Tuple (mapFstM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
@@ -81,10 +83,43 @@ llvmPostModule _ _ main m defs = do
 
 llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM (Maybe LLVMEntry)
 llvmCompileDef _ _ _ def = do
-  let t = LLVMPtr $ LLVMArray 4 (LLVMStruct True [LLVMSizedInt 8])
-  let res =
-        LLVMFnDefn
-          { fnSign = LLVMFnSign {fnName = llvmIdent "Hello", fnType = t, fnArgs = []}
-          , body = [LLVMBlock "begin" [LLVMRet $ Just $ LLVMLit $ LLVMNull t]]
-          }
-  return (Just res)
+  toLlvm def
+
+class ToLlvm a b where
+  toLlvm :: a -> TCM b
+
+instance ToLlvm Definition (Maybe LLVMEntry) where
+  toLlvm def = do
+    let qn = defName def
+        qn' = prettyShow $ qnameName qn
+    case theDef def of
+      Axiom {} -> return Nothing
+      GeneralizableVar {} -> return Nothing
+      d@Function {}
+        | d ^. funInline -> return Nothing
+      Function {} -> do
+        let t = LLVMPtr $ LLVMArray 4 (LLVMStruct True [LLVMSizedInt 8])
+        tl <- toTreeless LazyEvaluation qn
+        liftIO
+          do putStr "FUNCTION: "
+             putStrLn $ prettyShow qn
+             putStrLn $ prettyShow tl
+        return $
+          Just $
+          LLVMFnDefn
+            { fnSign = LLVMFnSign {fnName = llvmIdent qn', fnType = t, fnArgs = []}
+            , body = [LLVMBlock "begin" [LLVMRet $ Just $ LLVMLit $ LLVMNull t]]
+            }
+      Primitive {} -> return Nothing
+      PrimitiveSort {} -> return Nothing
+      Datatype {} -> return Nothing
+      Record {} -> return Nothing
+      Constructor {conSrcCon = chead, conArity = nargs} -> do
+        liftIO
+          do putStr "CONSTRUCTOR: "
+             putStrLn $ prettyShow qn
+             putStrLn $ prettyShow chead
+             print nargs
+        return Nothing
+      AbstractDefn {} -> __IMPOSSIBLE__
+      DataOrRecSig {} -> __IMPOSSIBLE__

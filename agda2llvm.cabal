@@ -37,6 +37,9 @@ library
       BlockArguments
       DeriveAnyClass
       DeriveGeneric
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
   build-depends:
       Agda >=2.6.2.1 && <2.6.3
     , base >=4.7 && <5
@@ -57,6 +60,9 @@ executable agda2llvm-exe
       BlockArguments
       DeriveAnyClass
       DeriveGeneric
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Agda >=2.6.2.1 && <2.6.3
@@ -80,6 +86,9 @@ test-suite agda2llvm-test
       BlockArguments
       DeriveAnyClass
       DeriveGeneric
+      FlexibleInstances
+      LambdaCase
+      MultiParamTypeClasses
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Agda >=2.6.2.1 && <2.6.3
