@@ -5,6 +5,8 @@ import Agda.Compiler.CallCompiler (callCompiler)
 import Agda.Compiler.Common (compileDir)
 import Agda.Compiler.LLVM.Options (LLVMOptions)
 import Agda.Utils.Pretty (prettyShow)
+import Control.Monad.IO.Class (MonadIO(liftIO))
+import Paths_agda2llvm
 import System.FilePath ((<.>), (</>))
 import System.Posix.Internals (newFilePath)
 
@@ -35,6 +37,15 @@ fileOutput isMain = do
 callLLVM :: LLVMOptions -> IsMain -> [FilePath] -> TCM ()
 callLLVM opt isMain intermediates = do
   o <- fileOutput isMain
-  let args = intermediates ++ ["-o", o] ++ ["-shared" | isMain == NotMain]
+  let libs = ["gc"]
+      libs' = map ("-l" ++) libs
+  let optimizeFlags = ["-O3", "-flto"]
+  rteFiles <- liftIO $ getRteFiles isMain
+  let args = intermediates ++ rteFiles ++ ["-o", o] ++ libs' ++ optimizeFlags ++ ["-shared" | isMain == NotMain]
   -- TODO: allow path to clang to be reconfigured
   callCompiler True "clang" args Nothing
+
+getRteFiles :: IsMain -> IO [FilePath]
+getRteFiles isMain = do
+  let files = ["Agda.ll"] ++ ["Main.ll" | isMain == IsMain]
+  traverse getDataFileName files
