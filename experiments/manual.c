@@ -8,9 +8,9 @@
 #include <string.h>
 
 #define AGDA_ALLOC(sz) GC_MALLOC(sz)
-#define AGDA_ALLOC_VALUE() AGDA_ALLOC(sizeof(struct AGDA_Value))
-#define AGDA_ALLOC_THUNK() AGDA_ALLOC(sizeof(struct AGDA_Thunk))
-#define AGDA_ALLOC_DATA(name) AGDA_ALLOC(sizeof(struct AGDA_Data_##name))
+#define AGDA_ALLOC_VALUE() (struct AGDA_Value *)AGDA_ALLOC(sizeof(struct AGDA_Value))
+#define AGDA_ALLOC_THUNK() (struct AGDA_Thunk *)AGDA_ALLOC(sizeof(struct AGDA_Thunk))
+#define AGDA_ALLOC_DATA(name) (struct AGDA_Data_##name *)AGDA_ALLOC(sizeof(struct AGDA_Data_##name))
 
 /*
 AGDA:
@@ -44,6 +44,7 @@ char* AGDA_Table_CtorName[];
 struct AGDA_Eval;
 struct AGDA_Value;
 struct AGDA_Thunk;
+struct AGDA_DataBase;
 
 struct AGDA_Eval {
     struct AGDA_Value * (*Ptr)(SOMETHING);
@@ -54,7 +55,7 @@ struct AGDA_Value {
     enum { VALUE_Function, VALUE_Data } TYPE;
     union {
         struct AGDA_Eval Function;
-        SOMETHING Data;
+        struct AGDA_DataBase *Data;
     };
 };
 
@@ -80,6 +81,13 @@ AGDA_Init(void)
 
 static
 struct AGDA_Value *
+AGDA_Eval(const struct AGDA_Eval *eval)
+{
+    return eval->Ptr(eval->Record);
+}
+
+static
+struct AGDA_Value *
 AGDA_Force(struct AGDA_Thunk *thunk)
 {
     if (thunk->evaluated) {
@@ -88,7 +96,7 @@ AGDA_Force(struct AGDA_Thunk *thunk)
     }
     printf("[Force] THUNK(%p) evaluating...\n", thunk);
     thunk->evaluated = true;
-    thunk->value = thunk->eval.Ptr(thunk->eval.Record);
+    thunk->value = AGDA_Eval(&thunk->eval);
     printf("[Force] THUNK(%p) value=%p\n", thunk, thunk->value);
 ret:
     return thunk->value;
@@ -104,7 +112,7 @@ AGDA_Appl_0(struct AGDA_Thunk *appl)
         printf("[Appl_0] THUNK(%p) is not Function\n", appl);
         return NULL;
     }
-    return v->Function.Ptr(v->Function.Record);
+    return AGDA_Eval(&v->Function);
 }
 
 /** create malloc'd pretty representation */
@@ -122,7 +130,7 @@ AGDA_ValuePretty(struct AGDA_Value *value)
         len += strlen("(fn)");
         break;
     case VALUE_Data: {
-        struct AGDA_DataBase *data = (struct AGDA_DataBase *)value->Data;
+        struct AGDA_DataBase *data = value->Data;
         size_t ctor_idx = data->ID + data->CASE;
         size_t arity = AGDA_Table_CtorArity[ctor_idx];
         const char *name = AGDA_Table_CtorName[ctor_idx];
@@ -180,7 +188,7 @@ CTOR_Dummy_dummy2(SOMETHING record)
 
     struct AGDA_Value *v = AGDA_ALLOC_VALUE();
     v->TYPE = VALUE_Data;
-    v->Data = data;
+    v->Data = (struct AGDA_DataBase *)data;
     return v;
 }
 
