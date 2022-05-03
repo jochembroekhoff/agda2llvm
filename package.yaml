@@ -28,6 +28,11 @@ dependencies:
 - containers
 - directory
 
+data-dir: data
+data-files:
+- Main.ll
+- Agda.ll
+
 library:
   source-dirs: src
 

@@ -10,6 +10,12 @@ data Nat : Set where
 
 {-# BUILTIN NATURAL Nat #-}
 
+data Bool : Set where
+  true : Bool
+  false : Bool
+otherwise = true
+{-# BUILTIN BOOL Bool #-}
+
 -- list of the empty list
 a = [] :: []
 b : MyList -> MyList -> MyList
@@ -17,7 +23,13 @@ b : MyList -> MyList -> MyList
 -- b nil = a
 b _ _ = a
 
-c = suc zero
+_$_ : {A B : Set} -> (A -> B) -> A -> B
+_$_ fn arg = fn arg
+
+c : Nat -> Nat
+c (suc zero) = zero
+c zero = suc zero
+c _ = suc (suc zero)
 
 data _×_ (A B : Set) : Set where
   _,_ : A → B → (A × B)
@@ -25,6 +37,8 @@ data _×_ (A B : Set) : Set where
 uncurry : {a b c : Set} → (a → b → c) → (a × b) → c
 uncurry fn (a , b) = fn a b
 
-my_fn : {a b : Set} -> a -> b -> b
-my_fn a b = b
-call_uncurry = (uncurry my_fn) (c , c)
+snd_curry : {a b : Set} -> a -> b -> b
+snd_curry a b = b
+
+call_uncurry : Nat -> Nat -> Nat
+call_uncurry a b = uncurry snd_curry (c a , c b)

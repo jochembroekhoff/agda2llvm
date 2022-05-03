@@ -16,6 +16,10 @@ build-type:     Simple
 extra-source-files:
     README.md
     CHANGELOG.md
+data-files:
+    Main.ll
+    Agda.ll
+data-dir:       data
 
 source-repository head
   type: git
