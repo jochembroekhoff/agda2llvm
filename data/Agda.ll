@@ -60,7 +60,7 @@ define
 
 ;; Agda evaluation
 
-define private
+define internal
 fastcc
 %agda.struct.value*
 @agda.eval.eval(%agda.struct.eval* %eval)
@@ -77,7 +77,7 @@ fastcc
     ret %agda.struct.value* %res
 }
 
-define private
+define internal
 fastcc
 %agda.struct.value*
 @agda.eval.force(%agda.struct.thunk* %thunk)
@@ -113,6 +113,8 @@ AlreadyEvaluated:
     ret %agda.struct.value* %final_value
 }
 
+@.str.TypeIncorrect = private constant [16 x i8] c"TypeIncorrect!\0A\00"
+
 define
 %agda.struct.value*
 @agda.eval.appl.0(%agda.struct.thunk* %appl)
@@ -136,10 +138,12 @@ TypeCorrect:
     ret %agda.struct.value* %eval_res
 
 TypeIncorrect:
+    call void (i8*, ...) @printf(i8* getelementptr ([16 x i8], [16 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
     ret %agda.struct.value* null
 }
 
-@fmt = private constant [12 x i8] c"Hello: %p\n\00"
+; "Hello %p (TAG: %zu, ID: %zu, CASE: %zu)\n"
+@fmt = private constant [42 x i8] c"Hello: %p (TAG: %zu, ID: %zu, CASE: %zu)\0A\00"
 
 define
 %agda.struct.value*
@@ -149,10 +153,23 @@ define
     call void @GC_init()
     ; call the main function to construct the root thunk
     %main_thunk = call %agda.struct.thunk* %main_fn(i8* null)
-    ; evaluate the result of the program
-    %v = call fastcc %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %main_thunk)
+    ; evaluate the result of the main function
+    %v = call fastcc %agda.struct.value* @agda.eval.appl.0(%agda.struct.thunk* %main_thunk)
     ; print the value pointer
-    %v_ptr = bitcast %agda.struct.value* %v to ptr
-    call void(i8*,...) @printf(i8* getelementptr ([12 x i8], [12 x i8]* @fmt, i32 0, i32 0), ptr %v_ptr)
+    %v_value = bitcast %agda.struct.value* %v to %agda.struct.value.value*
+    %v_tag_ptr = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_value, i32 0, i32 0
+    %v_tag = load i64, i64* %v_tag_ptr
+    %v_base_ptr_ptr = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_value, i32 0, i32 1
+    %v_base_ptr = load %agda.data.base*, %agda.data.base** %v_base_ptr_ptr
+    %v_id_ptr = getelementptr %agda.data.base, %agda.data.base* %v_base_ptr, i32 0, i32 0
+    %v_id = load i64, i64* %v_id_ptr
+    %v_case_ptr = getelementptr %agda.data.base, %agda.data.base* %v_base_ptr, i32 0, i32 1
+    %v_case = load i64, i64* %v_case_ptr
+    call void(i8*, ...) @printf(i8* getelementptr ([42 x i8], [42 x i8]* @fmt, i32 0, i32 0)
+        , %agda.struct.value* %v
+        , i64 %v_tag
+        , i64 %v_id
+        , i64 %v_case
+        )
     ret %agda.struct.value* %v
 }

@@ -19,10 +19,7 @@ data Dummy : Set where
     dummy1 : Dummy
     dummy2 : Dummy
 
-maker : Dummy -> Dummy
-maker = dummy2
-
-result = maker
+result = dummy2
 
 -- expected output: dummy2
 
@@ -30,8 +27,8 @@ LAMBDA FORM:
 
 #dummy1/0
 #dummy2/0
-maker = \-> (#dummy2)
-result = \-> (maker)
+dummy2 = \-> #dummy2/0
+result = \-> (dummy2)
 */
 
 #define SOMETHING void*
@@ -120,6 +117,9 @@ static
 char *
 AGDA_ValuePretty(struct AGDA_Value *value)
 {
+    if (!value)
+        return strdup("NULL!");
+
     char *pretty = malloc(1024);
     pretty[0] = '\0';
     size_t len = 0;
@@ -149,7 +149,7 @@ void
 AGDA_Main(struct AGDA_Thunk *(*entry)(void))
 {
     AGDA_Init();
-    struct AGDA_Value *v = AGDA_Force(entry());
+    struct AGDA_Value *v = AGDA_Appl_0(entry());
     printf("VALUE: %p\n", v);
     char *v_pretty = AGDA_ValuePretty(v);
     printf("CONTENT: %s\n", v_pretty);
@@ -194,9 +194,9 @@ CTOR_Dummy_dummy2(SOMETHING record)
 
 static
 struct AGDA_Value *
-maker__lam0(SOMETHING record)
+dummy2__body(SOMETHING record)
 {
-    // (#dummy1)
+    // #dummy2
 
     struct AGDA_Value *v = AGDA_ALLOC_VALUE();
     v->TYPE = VALUE_Function;
@@ -207,13 +207,13 @@ maker__lam0(SOMETHING record)
 
 static
 struct AGDA_Thunk *
-maker()
+dummy2()
 {
-    // maker = \-> (#dummy1)
+    // dummy2 = \-> #dummy2
 
     struct AGDA_Thunk *res = AGDA_ALLOC_THUNK();
     res->evaluated = false;
-    res->eval.Ptr = maker__lam0;
+    res->eval.Ptr = dummy2__body;
     res->eval.Record = NULL;
     return res;
 }
@@ -222,21 +222,34 @@ static
 struct AGDA_Value *
 result__lam0(SOMETHING record)
 {
-    // (maker)
+    // (dummy2)
 
-    struct AGDA_Thunk *appl = maker();
+    struct AGDA_Thunk *appl = dummy2();
     return AGDA_Appl_0(appl);
+}
+
+static
+struct AGDA_Value *
+result__body(SOMETHING record)
+{
+    // \-> (dummy2)
+
+    struct AGDA_Value *v = AGDA_ALLOC_VALUE();
+    v->TYPE = VALUE_Function;
+    v->Function.Ptr = result__lam0;
+    v->Function.Record = NULL;
+    return v;
 }
 
 static
 struct AGDA_Thunk *
 result(void)
 {
-    // result = \-> (maker)
+    // result = \-> (dummy2)
 
     struct AGDA_Thunk *res = AGDA_ALLOC_THUNK();
     res->evaluated = false;
-    res->eval.Ptr = result__lam0;
+    res->eval.Ptr = result__body;
     res->eval.Record = NULL;
     return res;
 }

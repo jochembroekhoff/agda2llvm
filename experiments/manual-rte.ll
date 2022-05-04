@@ -55,10 +55,8 @@ declare
 ;; Data constructors
 
 define
-fastcc
 %agda.struct.value*
 @agda.ctor.Dummy.dummy2(i8* %record)
-;sanitize_address
 {
     ; initialize data base
     %data_base = call %agda.data.base* @agda.alloc.data(i64 16)
@@ -87,20 +85,34 @@ fastcc
 
 ;; Normal functions
 
-define private
+define
 %agda.struct.value*
-@agda.fn.result.body(i8* %record)
+@agda.fn.dummy2.body(i8* %record)
 {
-    ; TODO: actually call constructor
-    %v_raw = inttoptr i64 123 to %agda.struct.value*
-    ret %agda.struct.value* %v_raw
+    ; #dummy2
+
+    ; initialize function value holder
+    %v = call %agda.struct.value* @agda.alloc.value()
+    ; configure value holder
+    %v_tag = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
+    store i64 0, i64* %v_tag ; tag=0 is function
+    %v_eval = bitcast %agda.struct.value* %v to %agda.struct.value.fn*
+    %v_eval_ptr = getelementptr %agda.struct.value.fn, %agda.struct.value.fn* %v_eval, i32 0, i32 1, i32 0
+    store %agda.struct.value*(i8*)* @agda.ctor.Dummy.dummy2, %agda.struct.value*(i8*)** %v_eval_ptr
+    %v_eval_record = getelementptr  %agda.struct.value.fn, %agda.struct.value.fn* %v_eval, i32 0, i32 1, i32 1
+    store i8* null, i8** %v_eval_record
+
+    ; %appl = call %agda.struct.thunk* @agda.fn.dummy2(i8* null)
+    ; %v = call %agda.struct.value* @agda.eval.appl.0(%agda.struct.thunk* %appl)
+
+    ret %agda.struct.value* %v
 }
 
 define
 %agda.struct.thunk*
-@agda.fn.result(i8* %record)
+@agda.fn.dummy2(i8* %record)
 {
-    ; result = \-> (#dummy2)
+    ; dummy2 = \-> #dummy2
 
     ; construct thunk holder
     %thunk_raw = call %agda.struct.thunk* @agda.alloc.thunk()
@@ -112,7 +124,7 @@ define
     store i64 %false, i64* %thunk_eval_flag
     ; (store function pointer)
     %thunk_eval_ptr = getelementptr %agda.struct.thunk.eval, %agda.struct.thunk.eval* %thunk_eval, i32 0, i32 1, i32 0
-    store %agda.struct.value*(i8*)* @agda.fn.result.body, %agda.struct.value* (i8*)** %thunk_eval_ptr
+    store %agda.struct.value*(i8*)* @agda.fn.dummy2.body, %agda.struct.value* (i8*)** %thunk_eval_ptr
     ; (store function record)
     %thunk_eval_record = getelementptr %agda.struct.thunk.eval, %agda.struct.thunk.eval* %thunk_eval, i32 0, i32 1, i32 1
     store i8* null, i8** %thunk_eval_record
@@ -126,6 +138,6 @@ define
 i64
 @main()
 {
-    %v = call %agda.struct.value* @agda.eval.main(%agda.struct.thunk*(i8*)* @agda.fn.result)
+    %v = call %agda.struct.value* @agda.eval.main(%agda.struct.thunk*(i8*)* @agda.fn.dummy2)
     ret i64 0
 }
