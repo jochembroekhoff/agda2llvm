@@ -9,7 +9,7 @@ import Agda.Compiler.LLVM.Options (LLVMOptions, defaultLLVMOptions)
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.Syntax
 import Agda.Compiler.LLVM.SyntaxUtil (llvmIdent)
-import Agda.Compiler.LLVM.Wiring (callLLVM, fileIntermediate)
+import Agda.Compiler.LLVM.Wiring (callLLVM, fileIntermediate, writeIntermediate)
 import Agda.Interaction.Options (OptDescr)
 import Agda.Utils.Impossible (__IMPOSSIBLE__)
 import Agda.Utils.Lens
@@ -61,14 +61,9 @@ llvmPreCompile = return
 
 llvmPostCompile :: LLVMOptions -> IsMain -> Map ModuleName LLVMModule -> TCM ()
 llvmPostCompile opts isMain modules = do
-  let modules' = Map.map llvmPretty modules
-  modules'' <- traverse (mapFstM fileIntermediate) $ Map.toList modules'
-  liftIO
-    do traverse (createDirectoryIfMissing True . takeDirectory . fst) modules''
-       traverse (uncurry writeFile) modules''
-  -- TODO: write header content in each .ll file
-  -- TODO: generate main.ll and meta.ll (table) files
-  callLLVM opts isMain (map fst modules'')
+  -- TODO: write meta.ll with string and case tables
+  modules' <- traverse (uncurry writeIntermediate) $ Map.toList modules
+  callLLVM opts isMain modules'
 
 --- Module & defs compilation ---
 llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [Maybe LLVMEntry] -> TCM LLVMModule
@@ -81,6 +76,8 @@ llvmPostModule _ _ main m defs = do
        putStrLn $ "IsMain: " ++ show (main == IsMain)
        putStrLn $ "CompileDir: " ++ show d
        putStrLn $ "IntermediateFile: " ++ show interm
+  -- TODO: add "define @main" if isMain==IsMain
+  -- TODO: add header entries (instead of string concat)
   return $ LLVMModule {entries = catMaybes defs}
 
 llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM (Maybe LLVMEntry)

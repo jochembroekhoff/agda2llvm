@@ -5,7 +5,7 @@
 
 
 
-;;;;;;;;;;;;;;;;;;;;;BEGIN HEADER;;;;;;;;;;;;;;;;;;;;;
+;;;; BEGIN AGDA HEADER ;;;;
 
 ;; Agda basic structures
 
@@ -34,19 +34,19 @@ declare
 
 declare
 %agda.data.base*
-@agda.alloc.data(i64 %sz)
+@agda.alloc.data(i64)
 
 ;; Agda evaluation
 
 declare
 %agda.struct.value*
-@agda.eval.appl.0(%agda.struct.thunk* %appl)
+@agda.eval.appl.0(%agda.struct.thunk*)
 
 declare
 %agda.struct.value*
-@agda.eval.main(%agda.struct.thunk*(i8*)* %main_fn)
+@agda.eval.main(%agda.struct.thunk*(i8*)*)
 
-;;;;;;;;;;;;;;;;;;;;;END HEADER;;;;;;;;;;;;;;;;;;;;;
+;;;; END AGDA HEADER ;;;;
 
 ;; Data structures
 

@@ -4,10 +4,13 @@ import Agda.Compiler.Backend (IsMain(..), ModuleName(mnameToList), TCM)
 import Agda.Compiler.CallCompiler (callCompiler)
 import Agda.Compiler.Common (compileDir)
 import Agda.Compiler.LLVM.Options (LLVMOptions)
+import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
+import Agda.Compiler.LLVM.Syntax
 import Agda.Utils.Pretty (prettyShow)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Paths_agda2llvm
-import System.FilePath ((<.>), (</>))
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((<.>), (</>), takeDirectory)
 import System.Posix.Internals (newFilePath)
 
 intermediateDirName :: String
@@ -34,6 +37,16 @@ fileOutput isMain = do
           NotMain -> "so"
   return $ d </> "out" <.> ext
 
+writeIntermediate :: ModuleName -> LLVMModule -> TCM FilePath
+writeIntermediate modName modContent = do
+  p <- fileIntermediate modName
+  let pretty = llvmPretty modContent
+  liftIO
+    do createDirectoryIfMissing True $ takeDirectory p
+       header <- getRteHeader
+       writeFile p (header ++ pretty)
+  return p
+
 callLLVM :: LLVMOptions -> IsMain -> [FilePath] -> TCM ()
 callLLVM opt isMain intermediates = do
   o <- fileOutput isMain
@@ -49,3 +62,8 @@ getRteFiles :: IsMain -> IO [FilePath]
 getRteFiles isMain = do
   let files = ["Agda.ll"]
   traverse getDataFileName files
+
+getRteHeader :: IO String
+getRteHeader = do
+  f <- getDataFileName "header.ll"
+  readFile f

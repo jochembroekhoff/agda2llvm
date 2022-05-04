@@ -16,6 +16,11 @@ MAlonzo
 
 # Agda (LLVM back-end)
 .agda2llvm
+out.so
+out.bin
 
 # VS Code
 /.vscode
+
+# Misc
+a.out
