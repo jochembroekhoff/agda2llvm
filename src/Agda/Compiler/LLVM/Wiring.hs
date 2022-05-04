@@ -47,5 +47,5 @@ callLLVM opt isMain intermediates = do
 
 getRteFiles :: IsMain -> IO [FilePath]
 getRteFiles isMain = do
-  let files = ["Agda.ll"] ++ ["Main.ll" | isMain == IsMain]
+  let files = ["Agda.ll"]
   traverse getDataFileName files

@@ -66,6 +66,7 @@ llvmPostCompile opts isMain modules = do
   liftIO
     do traverse (createDirectoryIfMissing True . takeDirectory . fst) modules''
        traverse (uncurry writeFile) modules''
+  -- TODO: write header content in each .ll file
   -- TODO: generate main.ll and meta.ll (table) files
   callLLVM opts isMain (map fst modules'')
 

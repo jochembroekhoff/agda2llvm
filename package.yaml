@@ -30,8 +30,8 @@ dependencies:
 
 data-dir: data
 data-files:
-- Main.ll
 - Agda.ll
+- header.ll
 
 library:
   source-dirs: src

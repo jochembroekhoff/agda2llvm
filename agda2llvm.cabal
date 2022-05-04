@@ -17,8 +17,8 @@ extra-source-files:
     README.md
     CHANGELOG.md
 data-files:
-    Main.ll
     Agda.ll
+    header.ll
 data-dir:       data
 
 source-repository head
