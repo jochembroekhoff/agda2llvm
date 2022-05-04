@@ -18,7 +18,6 @@ import Agda.Utils.Tuple (mapFstM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe (catMaybes)
 import Debug.Trace (trace)
 import System.Directory (createDirectoryIfMissing)
 import System.FilePath (takeDirectory)
@@ -28,7 +27,7 @@ llvmBackendName = "LLVM"
 llvmBackend :: Backend
 llvmBackend = Backend llvmBackend'
 
-llvmBackend' :: Backend' LLVMOptions LLVMOptions LLVMEnv LLVMModule (Maybe LLVMEntry)
+llvmBackend' :: Backend' LLVMOptions LLVMOptions LLVMEnv LLVMModule [LLVMEntry]
 llvmBackend' =
   Backend'
     { backendName = llvmBackendName
@@ -60,13 +59,14 @@ llvmPreCompile :: LLVMOptions -> TCM LLVMOptions
 llvmPreCompile = return
 
 llvmPostCompile :: LLVMOptions -> IsMain -> Map ModuleName LLVMModule -> TCM ()
-llvmPostCompile opts isMain modules = do
-  -- TODO: write meta.ll with string and case tables
+llvmPostCompile opts isMain modules
+   -- TODO: write meta.ll with string and case tables
+ = do
   modules' <- traverse (uncurry writeIntermediate) $ Map.toList modules
   callLLVM opts isMain modules'
 
 --- Module & defs compilation ---
-llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [Maybe LLVMEntry] -> TCM LLVMModule
+llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [[LLVMEntry]] -> TCM LLVMModule
 llvmPostModule _ _ main m defs = do
   d <- compileDir
   let m' = mnameToList m
@@ -78,24 +78,24 @@ llvmPostModule _ _ main m defs = do
        putStrLn $ "IntermediateFile: " ++ show interm
   -- TODO: add "define @main" if isMain==IsMain
   -- TODO: add header entries (instead of string concat)
-  return $ LLVMModule {entries = catMaybes defs}
+  return $ LLVMModule {entries = concat defs}
 
-llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM (Maybe LLVMEntry)
+llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM [LLVMEntry]
 llvmCompileDef _ _ _ def = do
   toLlvm def
 
 class ToLlvm a b where
   toLlvm :: a -> TCM b
 
-instance ToLlvm Definition (Maybe LLVMEntry) where
+instance ToLlvm Definition [LLVMEntry] where
   toLlvm def = do
     let qn = defName def
         qn' = prettyShow $ qnameName qn
     case theDef def of
-      Axiom {} -> return Nothing
-      GeneralizableVar {} -> return Nothing
+      Axiom {} -> return []
+      GeneralizableVar {} -> return []
       d@Function {}
-        | d ^. funInline -> return Nothing
+        | d ^. funInline -> return []
       Function {} -> do
         let t = LLVMPtr $ LLVMArray 4 (LLVMStruct True [LLVMSizedInt 8])
         tl <- toTreeless LazyEvaluation qn
@@ -103,22 +103,22 @@ instance ToLlvm Definition (Maybe LLVMEntry) where
           do putStr "FUNCTION: "
              putStrLn $ prettyShow qn
              putStrLn $ prettyShow tl
-        return $
-          Just $
-          LLVMFnDefn
-            { fnSign = LLVMFnSign {fnName = llvmIdent qn', fnType = t, fnArgs = []}
-            , body = [LLVMBlock "begin" [LLVMRet $ Just $ LLVMLit $ LLVMNull t]]
-            }
-      Primitive {} -> return Nothing
-      PrimitiveSort {} -> return Nothing
-      Datatype {} -> return Nothing
-      Record {} -> return Nothing
+        return
+          [ LLVMFnDefn
+              { fnSign = LLVMFnSign {fnName = llvmIdent qn', fnType = t, fnArgs = []}
+              , body = [LLVMBlock "begin" [LLVMRet $ Just $ LLVMLit $ LLVMNull t]]
+              }
+          ]
+      Primitive {} -> return []
+      PrimitiveSort {} -> return []
+      Datatype {} -> return []
+      Record {} -> return []
       Constructor {conSrcCon = chead, conArity = nargs} -> do
         liftIO
           do putStr "CONSTRUCTOR: "
              putStrLn $ prettyShow qn
              putStrLn $ prettyShow chead
              print nargs
-        return Nothing
+        return []
       AbstractDefn {} -> __IMPOSSIBLE__
       DataOrRecSig {} -> __IMPOSSIBLE__
