@@ -17,7 +17,7 @@ instance LLVMPretty LLVMModule where
 
 instance LLVMPretty LLVMEntry where
   llvmPretty (LLVMFnDecl fnSign) = "declare " ++ llvmPretty fnSign
-  llvmPretty (LLVMFnDefn fnSign body) = "define " ++ llvmPretty fnSign ++ " {\n" ++ body' ++ "}"
+  llvmPretty (LLVMFnDefn fnSign body) = "define " ++ llvmPretty fnSign ++ "\n{\n" ++ body' ++ "}"
     where
       body' = unlines $ map llvmPretty body
 
