@@ -33,6 +33,7 @@ library
       Agda.Compiler.LLVM.RteUtil
       Agda.Compiler.LLVM.Syntax
       Agda.Compiler.LLVM.SyntaxUtil
+      Agda.Compiler.LLVM.ToLLVM
       Agda.Compiler.LLVM.Wiring
   other-modules:
       Paths_agda2llvm
