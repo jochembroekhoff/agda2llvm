@@ -8,7 +8,7 @@ llvmIdent :: String -> LLVMIdent
 llvmIdent = LLVMIdent
 
 llvmRecord :: String -> LLVMInstruction -> (Maybe LLVMIdent, LLVMInstruction)
-llvmRecord ident = (Just $ LLVMIdent ident, )
+llvmRecord ident = (Just $ llvmIdent ident, )
 
 llvmDiscard :: LLVMInstruction -> (Maybe LLVMIdent, LLVMInstruction)
 llvmDiscard = (Nothing, )

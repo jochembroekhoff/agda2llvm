@@ -113,18 +113,18 @@ instance ToLlvm Definition [LLVMEntry] where
                       [ llvmRecord "thunk_raw" $ LLVMCall {callRef = refAllocThunk, callArgs = []}
                       , llvmRecord "thunk_eval" $
                         LLVMBitcast
-                          {bitcastFrom = LLVMLocal (LLVMIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkEvalPtr}
+                          {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkEvalPtr}
                       , llvmRecord "thunk_eval_flag" $
                         LLVMGetElementPtr
                           { elemBase = typeThunkEval
-                          , elemSrc = LLVMLocal (LLVMIdent "thunk_eval") typeThunkEvalPtr
+                          , elemSrc = LLVMLocal (llvmIdent "thunk_eval") typeThunkEvalPtr
                           , elemIndices = [0, 0]
                           }
                       , llvmRecord "false" $ LLVMZext {zextFrom = LLVMLit $ LLVMBool False, zextTo = LLVMSizedInt 64}
                       , llvmDiscard $
                         LLVMStore
-                          { storeSrc = LLVMRef $ LLVMLocal (LLVMIdent "false") (LLVMSizedInt 64)
-                          , storeDest = LLVMLocal (LLVMIdent "thunk_eval_flag") (LLVMPtr $ LLVMSizedInt 64)
+                          { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "false") (LLVMSizedInt 64)
+                          , storeDest = LLVMLocal (llvmIdent "thunk_eval_flag") (LLVMPtr $ LLVMSizedInt 64)
                           }
                       , llvmDiscard $ LLVMRet $ Just $ LLVMLit $ LLVMNull t
                       ]
