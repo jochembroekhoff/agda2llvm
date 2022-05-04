@@ -50,19 +50,43 @@ data LLVMType
       { structPacked :: Bool
       , structFields :: [LLVMType]
       }
+  | LLVMTRef
+      { typeIdent :: LLVMIdent
+      }
   deriving (Show)
 
 data LLVMBlock =
   LLVMBlock
     { blockLabel :: String
-    , blockInstructions :: [LLVMInstruction]
+    , blockInstructions :: [(Maybe LLVMIdent, LLVMInstruction)]
     }
   deriving (Show)
 
-data LLVMInstruction =
-  LLVMRet
-    { returnValue :: Maybe LLVMValue
-    }
+data LLVMInstruction
+  = LLVMBitcast
+      { bitcastFrom :: LLVMRef
+      , bitcastTo :: LLVMType
+      }
+  | LLVMCall
+      { callRef :: LLVMRef
+      , callArgs :: [LLVMRef]
+      }
+  | LLVMGetElementPtr
+      { elemBase :: LLVMType
+      , elemSrc :: LLVMRef
+      , elemIndices :: [Int]
+      }
+  | LLVMRet
+      { returnValue :: Maybe LLVMValue
+      }
+  | LLVMStore
+      { storeSrc :: LLVMValue
+      , storeDest :: LLVMRef
+      }
+  | LLVMZext
+      { zextFrom :: LLVMValue
+      , zextTo :: LLVMType
+      }
   deriving (Show)
 
 data LLVMValue
@@ -86,7 +110,10 @@ data LLVMRef
   deriving (Show)
 
 data LLVMLit
-  = LLVMInt
+  = LLVMBool
+      { boolValue :: Bool
+      }
+  | LLVMInt
       { litType :: LLVMType
       , litValue :: Int
       }

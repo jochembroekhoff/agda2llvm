@@ -65,3 +65,4 @@ default-extensions:
   - FlexibleInstances
   - LambdaCase
   - MultiParamTypeClasses
+  - TupleSections

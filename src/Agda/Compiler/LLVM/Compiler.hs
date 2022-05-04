@@ -7,8 +7,9 @@ import Agda.Compiler.Backend
 import Agda.Compiler.Common (compileDir)
 import Agda.Compiler.LLVM.Options (LLVMOptions, defaultLLVMOptions)
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
+import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
-import Agda.Compiler.LLVM.SyntaxUtil (llvmIdent)
+import Agda.Compiler.LLVM.SyntaxUtil (llvmDiscard, llvmIdent, llvmRecord)
 import Agda.Compiler.LLVM.Wiring (callLLVM, fileIntermediate, writeIntermediate)
 import Agda.Interaction.Options (OptDescr)
 import Agda.Utils.Impossible (__IMPOSSIBLE__)
@@ -106,7 +107,28 @@ instance ToLlvm Definition [LLVMEntry] where
         return
           [ LLVMFnDefn
               { fnSign = LLVMFnSign {fnName = llvmIdent qn', fnType = t, fnArgs = []}
-              , body = [LLVMBlock "begin" [LLVMRet $ Just $ LLVMLit $ LLVMNull t]]
+              , body =
+                  [ LLVMBlock
+                      "begin"
+                      [ llvmRecord "thunk_raw" $ LLVMCall {callRef = refAllocThunk, callArgs = []}
+                      , llvmRecord "thunk_eval" $
+                        LLVMBitcast
+                          {bitcastFrom = LLVMLocal (LLVMIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkEvalPtr}
+                      , llvmRecord "thunk_eval_flag" $
+                        LLVMGetElementPtr
+                          { elemBase = typeThunkEval
+                          , elemSrc = LLVMLocal (LLVMIdent "thunk_eval") typeThunkEvalPtr
+                          , elemIndices = [0, 0]
+                          }
+                      , llvmRecord "false" $ LLVMZext {zextFrom = LLVMLit $ LLVMBool False, zextTo = LLVMSizedInt 64}
+                      , llvmDiscard $
+                        LLVMStore
+                          { storeSrc = LLVMRef $ LLVMLocal (LLVMIdent "false") (LLVMSizedInt 64)
+                          , storeDest = LLVMLocal (LLVMIdent "thunk_eval_flag") (LLVMPtr $ LLVMSizedInt 64)
+                          }
+                      , llvmDiscard $ LLVMRet $ Just $ LLVMLit $ LLVMNull t
+                      ]
+                  ]
               }
           ]
       Primitive {} -> return []
