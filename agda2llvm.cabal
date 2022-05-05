@@ -27,6 +27,8 @@ source-repository head
 
 library
   exposed-modules:
+      Agda.Compiler.LLVM.APprint
+      Agda.Compiler.LLVM.ASyntax
       Agda.Compiler.LLVM.Compiler
       Agda.Compiler.LLVM.Options
       Agda.Compiler.LLVM.Pprint

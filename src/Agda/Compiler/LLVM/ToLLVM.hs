@@ -5,9 +5,11 @@ import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
 import Agda.Compiler.LLVM.SyntaxUtil (llvmDiscard, llvmIdent, llvmRecord)
+import Agda.Compiler.Treeless.NormalizeNames (normalizeNames)
 import Agda.Syntax.Common (LensModality(getModality), usableModality)
 import Agda.Utils.Impossible (__IMPOSSIBLE__)
 import Agda.Utils.Lens
+import Agda.Utils.Maybe (liftMaybe)
 import Agda.Utils.Pretty (prettyShow)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 
@@ -25,14 +27,21 @@ instance ToLlvm Definition [LLVMEntry] where
       d@Function {}
         | d ^. funInline -> return []
       Function {} -> do
-        tl <- toTreeless LazyEvaluation qn
+        tl <-
+          do v <- toTreeless LazyEvaluation qn
+             mapM normalizeNames v
         liftIO
           do putStr "FUNCTION: "
              putStrLn $ prettyShow qn
-             putStrLn $ prettyShow tl
+             print tl
         case tl of
           Nothing -> return []
-          Just tt -> transformFunction qn tt
+          Just tt -> do
+            liftIO
+              do print $ tAppView tt
+                 print $ tLetView tt
+                 print $ tLamView tt
+            transformFunction qn tt
       Primitive {} -> return []
       PrimitiveSort {} -> return []
       Datatype {} -> return []
