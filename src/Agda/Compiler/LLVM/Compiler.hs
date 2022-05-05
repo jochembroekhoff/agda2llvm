@@ -11,7 +11,7 @@ import Agda.Compiler.LLVM.Options (LLVMOptions, defaultLLVMOptions)
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
-import Agda.Compiler.LLVM.ToLLVM (ToLlvm(toLlvm))
+import Agda.Compiler.LLVM.ToAbstractIntermediate (ToAbstractIntermediate(toA))
 import Agda.Compiler.LLVM.Wiring (callLLVM, fileIntermediate, writeIntermediate)
 import Agda.Interaction.Options (OptDescr)
 import Agda.Utils.Pretty (prettyShow)
@@ -84,4 +84,4 @@ llvmPostModule _ _ main m defs = do
 
 llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM [AEntry]
 llvmCompileDef _ _ _ def = do
-  toLlvm def
+  toA def

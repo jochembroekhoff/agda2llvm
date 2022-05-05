@@ -1,4 +1,4 @@
-module Agda.Compiler.LLVM.ToLLVM where
+module Agda.Compiler.LLVM.ToAbstractIntermediate where
 
 import Agda.Compiler.Backend
 import Agda.Compiler.LLVM.ASyntax
@@ -14,13 +14,13 @@ import Agda.Utils.Maybe (liftMaybe)
 import Agda.Utils.Pretty (prettyShow)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 
-class ToLlvm a b where
-  toLlvm :: a -> TCM b
+class ToAbstractIntermediate a b where
+  toA :: a -> TCM b
 
-instance ToLlvm Definition [AEntry] where
-  toLlvm def
+instance ToAbstractIntermediate Definition [AEntry] where
+  toA def
     | defNoCompilation def || not (usableModality $ getModality def) = return []
-  toLlvm def = do
+  toA def = do
     let qn = defName def
     case theDef def of
       Axiom {} -> return []
