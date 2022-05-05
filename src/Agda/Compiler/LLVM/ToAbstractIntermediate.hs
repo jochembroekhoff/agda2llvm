@@ -17,16 +17,16 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 class ToAbstractIntermediate a b where
   toA :: a -> TCM b
 
-instance ToAbstractIntermediate Definition [AEntry] where
+instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
   toA def
-    | defNoCompilation def || not (usableModality $ getModality def) = return []
+    | defNoCompilation def || not (usableModality $ getModality def) = return Nothing
   toA def = do
     let qn = defName def
     case theDef def of
-      Axiom {} -> return []
-      GeneralizableVar {} -> return []
+      Axiom {} -> return Nothing
+      GeneralizableVar {} -> return Nothing
       d@Function {}
-        | d ^. funInline -> return []
+        | d ^. funInline -> return Nothing
       Function {} -> do
         tl <-
           do v <- toTreeless LazyEvaluation qn
@@ -36,37 +36,37 @@ instance ToAbstractIntermediate Definition [AEntry] where
              putStrLn $ prettyShow qn
              print tl
         case tl of
-          Nothing -> return []
+          Nothing -> return Nothing
           Just tt -> do
             liftIO
               do print $ tAppView tt
                  print $ tLetView tt
                  print $ tLamView tt
-            transformFunction qn tt
-      Primitive {} -> return []
-      PrimitiveSort {} -> return []
-      Datatype {} -> return []
-      Record {} -> return []
+            Just <$> transformFunction qn tt
+      Primitive {} -> return Nothing
+      PrimitiveSort {} -> return Nothing
+      Datatype {} -> return Nothing
+      Record {} -> return Nothing
       Constructor {conSrcCon = chead, conArity = nargs} -> do
         liftIO
           do putStr "CONSTRUCTOR: "
              putStrLn $ prettyShow qn
              putStrLn $ prettyShow chead
              print nargs
-        return []
+        return Nothing
       AbstractDefn {} -> __IMPOSSIBLE__
       DataOrRecSig {} -> __IMPOSSIBLE__
 
 ---
-transformFunction :: QName -> TTerm -> TCM [AEntry]
+transformFunction :: QName -> TTerm -> TCM (AIdent, [AEntry])
 transformFunction qn tt = do
-  let t = LLVMPtr $ LLVMArray 4 (LLVMStruct True [LLVMSizedInt 8])
-      qn' = prettyShow qn
+  let qn' = AIdent $ prettyShow qn
   return
     -- TODO
-    [ AEntryThunk
-        { entryIdent = AIdent "#dummy2"
-        , entryThunk = AThunkDelay $ AMkValue AValueData {dataIdx = 0, dataCase = 1, dataArity = 0}
-        }
-    , AEntryThunk {entryIdent = AIdent qn', entryThunk = AThunkDelay $ AAppl (AIdent "#dummy2") []}
-    ]
+    ( qn'
+    , [ AEntryThunk
+          { entryIdent = AIdent "#dummy2"
+          , entryThunk = AThunkDelay $ AMkValue AValueData {dataIdx = 123, dataCase = 456, dataArity = 0}
+          }
+      , AEntryThunk {entryIdent = qn', entryThunk = AThunkDelay $ AAppl (AIdent "#dummy2") []}
+      ])

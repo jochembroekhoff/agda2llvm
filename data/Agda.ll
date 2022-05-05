@@ -61,7 +61,6 @@ define
 ;; Agda evaluation
 
 define internal
-fastcc
 %agda.struct.value*
 @agda.eval.eval(%agda.struct.eval* %eval)
 {
@@ -78,7 +77,6 @@ fastcc
 }
 
 define internal
-fastcc
 %agda.struct.value*
 @agda.eval.force(%agda.struct.thunk* %thunk)
 {
@@ -101,7 +99,7 @@ NotEvaluated:
     %thunk_e = bitcast %agda.struct.thunk* %thunk to %agda.struct.thunk.eval*
     %eval_ptr = getelementptr %agda.struct.thunk.eval, %agda.struct.thunk.eval* %thunk_e, i32 0, i32 1
     ; call the evaluation
-    %new_value = call fastcc %agda.struct.value* @agda.eval.eval(%agda.struct.eval* %eval_ptr)
+    %new_value = call %agda.struct.value* @agda.eval.eval(%agda.struct.eval* %eval_ptr)
     ; store the new value
     store %agda.struct.value* %new_value, %agda.struct.value** %value_ptr_ptr
     ; continue as if the value as evaluated
@@ -119,8 +117,21 @@ define
 %agda.struct.value*
 @agda.eval.appl.0(%agda.struct.thunk* %appl)
 {
-    ; evaluate the value to apply 0 arguments to
-    %v = call fastcc %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %appl)
+    ; evaluate the value, this is basically just an alias to force (which is private)
+    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %appl)
+    ret %agda.struct.value* %v
+}
+
+define
+%agda.struct.value*
+@agda.eval.appl.1(%agda.struct.thunk* %appl, %agda.struct.thunk* %arg0)
+{
+    ; TODO: the argument is currently not passed at all.
+    ;       this needs to be implemented in the eval handler?
+    ;       reason: always want to pass record, e.g. for saving parameters
+
+    ; evaluate the value to apply 1 argument to
+    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %appl)
 
     ; value must be a function, otherwise can't apply. check that now
     %v_tag_ptr = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
@@ -133,7 +144,7 @@ TypeCorrect:
     %v_fn = bitcast %agda.struct.value* %v to %agda.struct.value.fn*
     %eval_info = getelementptr %agda.struct.value.fn, %agda.struct.value.fn* %v_fn, i32 0, i32 1
     ; evaluate the function
-    %eval_res = call fastcc %agda.struct.value* @agda.eval.eval(%agda.struct.eval* %eval_info)
+    %eval_res = call %agda.struct.value* @agda.eval.eval(%agda.struct.eval* %eval_info)
     ; return the evaluation result
     ret %agda.struct.value* %eval_res
 

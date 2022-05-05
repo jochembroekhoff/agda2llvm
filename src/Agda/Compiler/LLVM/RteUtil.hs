@@ -61,6 +61,10 @@ refAllocThunk =
   LLVMGlobal {refName = LLVMIdent "agda.alloc.thunk", refType = LLVMFn {fnRet = typeThunkPtr, fnParams = []}}
 
 --- Misc ---
+refMain :: LLVMRef
+refMain =
+  LLVMGlobal {refName = LLVMIdent "agda.eval.main", refType = LLVMFn {fnRet = typeValuePtr, fnParams = [typeFnCreator]}}
+
 refAppl0 :: LLVMRef
 refAppl0 =
   LLVMGlobal

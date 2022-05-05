@@ -77,11 +77,14 @@ llvmPostModule _ _ main m defs = do
        putStrLn $ "IsMain: " ++ show (main == IsMain)
        putStrLn $ "CompileDir: " ++ show d
        putStrLn $ "IntermediateFile: " ++ show interm
-  -- TODO: add "define @main" if isMain==IsMain
+  -- TODO: check that there is a definition @main iff main==IsMain
   -- TODO: add header entries (instead of string concat)
   let defs' = concatMap aToLlvm $ concat defs
   return $ LLVMModule {entries = defs'}
 
 llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM [AEntry]
-llvmCompileDef _ _ _ def = do
-  toA def
+llvmCompileDef _ _ isMain def = do
+  res <- toA def
+  case res of
+    Nothing -> return []
+    Just (name, entries) -> return (entries ++ [AEntryMain name | isMain == IsMain])

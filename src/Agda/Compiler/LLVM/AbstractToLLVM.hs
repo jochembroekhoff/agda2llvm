@@ -17,6 +17,20 @@ instance AToLlvm AEntry [LLVMEntry] where
     where
       (thunkConstructor, thunkEvaluator) = aToLlvm (ident, thunk)
   aToLlvm (AEntryDirect ident body) = [aToLlvm (ident, body)]
+  aToLlvm (AEntryMain mainRef) =
+    [ LLVMFnDefn
+        { fnSign = llvmMainSignature
+        , body =
+            [ LLVMBlock
+                "begin"
+                [ llvmDiscard $
+                  LLVMCall
+                    {callRef = refMain, callArgs = [LLVMRef $ LLVMGlobal (aToLlvm mainRef) (LLVMPtr typeFnCreator)]}
+                , llvmDiscard $ LLVMRet $ Just $ LLVMLit $ LLVMInt (LLVMSizedInt 64) 0
+                ]
+            ]
+        }
+    ]
 
 instance AToLlvm (AIdent, AThunk) (LLVMEntry, Maybe LLVMEntry) where
   aToLlvm (ident, AThunkDelay body) = (thunkConstructor, Just thunkEvaluator)

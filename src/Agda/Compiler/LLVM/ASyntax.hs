@@ -12,6 +12,9 @@ data AEntry
       { entryIdent :: AIdent
       , entryBody :: ABody
       }
+  | AEntryMain
+      { mainReference :: AIdent
+      }
 
 data AThunk
   = AThunkDelay

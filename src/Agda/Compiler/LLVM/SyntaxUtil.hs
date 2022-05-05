@@ -1,6 +1,6 @@
 module Agda.Compiler.LLVM.SyntaxUtil where
 
-import Agda.Compiler.LLVM.Syntax (LLVMIdent(LLVMIdent), LLVMInstruction)
+import Agda.Compiler.LLVM.Syntax
 import Data.Char (ord)
 
 -- | Safely create an identifier
@@ -17,6 +17,9 @@ llvmIdent = LLVMIdent . sanitize . ("agda2llvm." ++)
       | otherwise = '\\' : toHex (ord c) ++ cs'
       where
         cs' = sanitize' cs
+
+llvmMainSignature :: LLVMFnSign
+llvmMainSignature = LLVMFnSign {fnName = LLVMIdent "main", fnType = LLVMSizedInt 64, fnArgs = []}
 
 llvmRecord :: String -> LLVMInstruction -> (Maybe LLVMIdent, LLVMInstruction)
 llvmRecord ident = (Just $ llvmIdent ident, )

@@ -53,6 +53,8 @@ callLLVM opt isMain intermediates = do
   let libs = ["gc"]
       libs' = map ("-l" ++) libs
   let optimizeFlags = ["-O3", "-flto"]
+  -- TODO: only enable these in debug mode (add flag)
+  --let optimizeFlags = ["-g3", "-ggdb"]
   rteFiles <- liftIO $ getRteFiles isMain
   let args = intermediates ++ rteFiles ++ ["-o", o] ++ libs' ++ optimizeFlags ++ ["-shared" | isMain == NotMain]
   -- TODO: allow path to clang to be reconfigured
