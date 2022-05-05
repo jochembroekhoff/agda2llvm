@@ -16,15 +16,16 @@ instance LLVMPretty LLVMModule where
   llvmPretty (LLVMModule entries) = intercalate "\n\n" (map llvmPretty entries)
 
 instance LLVMPretty LLVMEntry where
-  llvmPretty (LLVMFnDecl fnSign) = "declare " ++ llvmPretty fnSign
-  llvmPretty (LLVMFnDefn fnSign body) = "define " ++ llvmPretty fnSign ++ "\n{\n" ++ body' ++ "}"
+  llvmPretty (LLVMFnDecl fnSign) = "declare\n" ++ llvmPretty fnSign
+  llvmPretty (LLVMFnDefn fnSign body) = "define\n" ++ llvmPretty fnSign ++ "\n{\n" ++ body' ++ "}"
     where
       body' = unlines $ map llvmPretty body
 
 instance LLVMPretty LLVMFnSign where
-  llvmPretty (LLVMFnSign fnName fnType fnArgs) = llvmPretty fnType ++ " @" ++ llvmPretty fnName ++ "(" ++ fnArgs' ++ ")"
+  llvmPretty (LLVMFnSign fnName fnType fnArgs) =
+    llvmPretty fnType ++ "\n@" ++ llvmPretty fnName ++ "(" ++ fnArgs' ++ ")"
     where
-      fnArgs' = intercalate ", " (map (\(k, t) -> llvmPretty t ++ " %" ++ llvmPretty k) fnArgs)
+      fnArgs' = intercalate ", " (map (\(t, k) -> llvmPretty t ++ " %" ++ llvmPretty k) fnArgs)
 
 instance LLVMPretty LLVMType where
   llvmPretty LLVMVoid = "void"

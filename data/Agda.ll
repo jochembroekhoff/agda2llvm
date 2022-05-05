@@ -151,10 +151,10 @@ define
 {
     ; ensure that the garbage collector is initialized
     call void @GC_init()
-    ; call the main function to construct the root thunk
+    ; call the main definition to construct the root thunk
     %main_thunk = call %agda.struct.thunk* %main_fn(i8* null)
-    ; evaluate the result of the main function
-    %v = call %agda.struct.value* @agda.eval.appl.0(%agda.struct.thunk* %main_thunk)
+    ; evaluate the result of the main definition
+    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %main_thunk)
     ; print the value pointer
     %v_value = bitcast %agda.struct.value* %v to %agda.struct.value.value*
     %v_tag_ptr = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_value, i32 0, i32 0

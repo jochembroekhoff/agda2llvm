@@ -16,7 +16,8 @@ instance APretty AIdent where
   aPretty (AIdent ident) = ident
 
 instance APretty AEntry where
-  aPretty (AEntry ident thunk) = aPretty ident ++ "() =\n" ++ indent (aPretty thunk)
+  aPretty (AEntryThunk ident thunk) = aPretty ident ++ "() =\n" ++ indent (aPretty thunk)
+  aPretty (AEntryDirect ident body) = aPretty ident ++ "() =\n" ++ indent (aPretty body)
 
 instance APretty AThunk where
   aPretty (AThunkDelay body) = "THUNK.delay{\n" ++ indent (aPretty body) ++ "}"

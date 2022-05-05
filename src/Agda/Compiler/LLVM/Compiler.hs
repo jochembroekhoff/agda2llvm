@@ -5,6 +5,8 @@ module Agda.Compiler.LLVM.Compiler where
 
 import Agda.Compiler.Backend
 import Agda.Compiler.Common (compileDir)
+import Agda.Compiler.LLVM.ASyntax
+import Agda.Compiler.LLVM.AbstractToLLVM (AToLlvm(aToLlvm))
 import Agda.Compiler.LLVM.Options (LLVMOptions, defaultLLVMOptions)
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.RteUtil
@@ -26,7 +28,7 @@ llvmBackendName = "LLVM"
 llvmBackend :: Backend
 llvmBackend = Backend llvmBackend'
 
-llvmBackend' :: Backend' LLVMOptions LLVMOptions LLVMEnv LLVMModule [LLVMEntry]
+llvmBackend' :: Backend' LLVMOptions LLVMOptions LLVMEnv LLVMModule [AEntry]
 llvmBackend' =
   Backend'
     { backendName = llvmBackendName
@@ -65,7 +67,7 @@ llvmPostCompile opts isMain modules
   callLLVM opts isMain modules'
 
 --- Module & defs compilation ---
-llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [[LLVMEntry]] -> TCM LLVMModule
+llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [[AEntry]] -> TCM LLVMModule
 llvmPostModule _ _ main m defs = do
   d <- compileDir
   let m' = mnameToList m
@@ -77,8 +79,9 @@ llvmPostModule _ _ main m defs = do
        putStrLn $ "IntermediateFile: " ++ show interm
   -- TODO: add "define @main" if isMain==IsMain
   -- TODO: add header entries (instead of string concat)
-  return $ LLVMModule {entries = concat defs}
+  let defs' = concatMap aToLlvm $ concat defs
+  return $ LLVMModule {entries = defs'}
 
-llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM [LLVMEntry]
+llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM [AEntry]
 llvmCompileDef _ _ _ def = do
   toLlvm def

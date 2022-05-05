@@ -69,7 +69,7 @@ data LLVMInstruction
       }
   | LLVMCall
       { callRef :: LLVMRef
-      , callArgs :: [LLVMRef]
+      , callArgs :: [LLVMValue]
       }
   | LLVMGetElementPtr
       { elemBase :: LLVMType

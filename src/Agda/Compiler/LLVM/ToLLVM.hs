@@ -1,6 +1,7 @@
 module Agda.Compiler.LLVM.ToLLVM where
 
 import Agda.Compiler.Backend
+import Agda.Compiler.LLVM.ASyntax
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
@@ -16,7 +17,7 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 class ToLlvm a b where
   toLlvm :: a -> TCM b
 
-instance ToLlvm Definition [LLVMEntry] where
+instance ToLlvm Definition [AEntry] where
   toLlvm def
     | defNoCompilation def || not (usableModality $ getModality def) = return []
   toLlvm def = do
@@ -57,34 +58,15 @@ instance ToLlvm Definition [LLVMEntry] where
       DataOrRecSig {} -> __IMPOSSIBLE__
 
 ---
-transformFunction :: QName -> TTerm -> TCM [LLVMEntry]
+transformFunction :: QName -> TTerm -> TCM [AEntry]
 transformFunction qn tt = do
   let t = LLVMPtr $ LLVMArray 4 (LLVMStruct True [LLVMSizedInt 8])
       qn' = prettyShow qn
   return
-    [ LLVMFnDefn
-        { fnSign = LLVMFnSign {fnName = llvmIdent qn', fnType = t, fnArgs = []}
-        , body =
-            [ LLVMBlock
-                "begin"
-                [ llvmRecord "thunk_raw" $ LLVMCall {callRef = refAllocThunk, callArgs = []}
-                , llvmRecord "thunk_eval" $
-                  LLVMBitcast
-                    {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkEvalPtr}
-                , llvmRecord "thunk_eval_flag" $
-                  LLVMGetElementPtr
-                    { elemBase = typeThunkEval
-                    , elemSrc = LLVMLocal (llvmIdent "thunk_eval") typeThunkEvalPtr
-                    , elemIndices = [0, 0]
-                    }
-                , llvmRecord "false" $ LLVMZext {zextFrom = LLVMLit $ LLVMBool False, zextTo = LLVMSizedInt 64}
-                , llvmDiscard $
-                  LLVMStore
-                    { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "false") (LLVMSizedInt 64)
-                    , storeDest = LLVMLocal (llvmIdent "thunk_eval_flag") (LLVMPtr $ LLVMSizedInt 64)
-                    }
-                , llvmDiscard $ LLVMRet $ Just $ LLVMLit $ LLVMNull t
-                ]
-            ]
+    -- TODO
+    [ AEntryThunk
+        { entryIdent = AIdent "#dummy2"
+        , entryThunk = AThunkDelay $ AMkValue AValueData {dataIdx = 0, dataCase = 1, dataArity = 0}
         }
+    , AEntryThunk {entryIdent = AIdent qn', entryThunk = AThunkDelay $ AAppl (AIdent "#dummy2") []}
     ]

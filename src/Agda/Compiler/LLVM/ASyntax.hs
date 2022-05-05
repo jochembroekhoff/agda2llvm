@@ -3,11 +3,15 @@ module Agda.Compiler.LLVM.ASyntax where
 newtype AIdent =
   AIdent String
 
-data AEntry =
-  AEntry
-    { entryIdent :: AIdent
-    , entryThunk :: AThunk
-    }
+data AEntry
+  = AEntryThunk
+      { entryIdent :: AIdent
+      , entryThunk :: AThunk
+      }
+  | AEntryDirect
+      { entryIdent :: AIdent
+      , entryBody :: ABody
+      }
 
 data AThunk
   = AThunkDelay
@@ -36,11 +40,6 @@ data AValue
       { fnIdent :: AIdent
       }
 
-example =
-  [ AEntry
-      {entryIdent = AIdent "#dummy1$0", entryThunk = AThunkValue AValueData {dataIdx = 0, dataCase = 1, dataArity = 1}}
-  , AEntry
-      { entryIdent = AIdent "result"
-      , entryThunk = AThunkDelay AAppl {applSubj = AIdent "mk", applArgs = [AIdent "#dummy2"]}
-      }
-  ]
+---
+instance Semigroup AIdent where
+  AIdent l <> AIdent r = AIdent (l <> r)
