@@ -29,7 +29,7 @@ instance LLVMPretty LLVMFnSign where
 
 instance LLVMPretty LLVMType where
   llvmPretty LLVMVoid = "void"
-  llvmPretty (LLVMFn tRet tParams) = llvmPretty tRet ++ " (" ++ llvmPrettyComma tParams ++ ")"
+  llvmPretty (LLVMFn tRet tParams) = llvmPretty tRet ++ "(" ++ llvmPrettyComma tParams ++ ")"
   llvmPretty (LLVMSizedInt sz) = 'i' : show sz
   llvmPretty (LLVMPtr t) = llvmPretty t ++ "*"
   llvmPretty (LLVMArray n t) = "[" ++ show n ++ " x " ++ llvmPretty t ++ "]"
