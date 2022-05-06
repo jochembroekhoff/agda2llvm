@@ -8,6 +8,7 @@ import Agda.Compiler.LLVM.Syntax
 import Agda.Compiler.LLVM.SyntaxUtil (llvmDiscard, llvmIdent, llvmRecord)
 import Agda.Compiler.Treeless.NormalizeNames (normalizeNames)
 import Agda.Syntax.Common (LensModality(getModality), usableModality)
+import Agda.Syntax.Internal (ConHead(conName))
 import Agda.Utils.Impossible (__IMPOSSIBLE__)
 import Agda.Utils.Lens
 import Agda.Utils.Maybe (liftMaybe)
@@ -35,14 +36,10 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
           do putStr "FUNCTION: "
              putStrLn $ prettyShow qn
              print tl
+        -- TODO: could be replaced with mapM
         case tl of
           Nothing -> return Nothing
-          Just tt -> do
-            liftIO
-              do print $ tAppView tt
-                 print $ tLetView tt
-                 print $ tLamView tt
-            Just <$> transformFunction qn tt
+          Just tt -> Just <$> transformFunction qn tt
       Primitive {} -> return Nothing
       PrimitiveSort {} -> return Nothing
       Datatype {} -> return Nothing
@@ -53,20 +50,33 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
              putStrLn $ prettyShow qn
              putStrLn $ prettyShow chead
              print nargs
-        return Nothing
+        Just <$> transformCtor (conName chead) nargs
       AbstractDefn {} -> __IMPOSSIBLE__
       DataOrRecSig {} -> __IMPOSSIBLE__
 
 ---
 transformFunction :: QName -> TTerm -> TCM (AIdent, [AEntry])
 transformFunction qn tt = do
+  let (appl, args) = tAppView tt
   let qn' = AIdent $ prettyShow qn
+  (applIdent, applEntry) <- transformAnonymousTermLifted appl
+  args' <- traverse transformAnonymousTermLifted args
+  let argsIdents = map fst args'
+      argsEntries = concatMap snd args'
+  let fnEntries = [AEntryThunk {entryIdent = qn', entryThunk = AThunkDelay $ AAppl applIdent argsIdents}]
+  return (qn', fnEntries ++ applEntry ++ argsEntries)
+
+transformAnonymousTermLifted :: TTerm -> TCM (AIdent, [AEntry])
+transformAnonymousTermLifted (TCon cn) = return (AIdent $ prettyShow cn, [])
+transformAnonymousTermLifted _ = undefined
+
+transformCtor :: QName -> Int -> TCM (AIdent, [AEntry])
+transformCtor cn nargs = do
+  let name' = AIdent $ prettyShow cn
   return
-    -- TODO
-    ( qn'
+    ( name'
     , [ AEntryThunk
-          { entryIdent = AIdent "#dummy2"
-          , entryThunk = AThunkDelay $ AMkValue AValueData {dataIdx = 123, dataCase = 456, dataArity = 0}
+          { entryIdent = name'
+          , entryThunk = AThunkDelay $ AMkValue AValueData {dataIdx = 123, dataCase = 456, dataArity = nargs}
           }
-      , AEntryThunk {entryIdent = qn', entryThunk = AThunkDelay $ AAppl (AIdent "#dummy2") []}
       ])

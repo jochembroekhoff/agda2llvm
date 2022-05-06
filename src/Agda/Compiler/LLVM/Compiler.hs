@@ -87,4 +87,8 @@ llvmCompileDef _ _ isMain def = do
   res <- toA def
   case res of
     Nothing -> return []
-    Just (name, entries) -> return (entries ++ [AEntryMain name | isMain == IsMain])
+    Just (name, entries) -> return (entries ++ [AEntryMain name | thisDefIsTheMainOne isMain def])
+
+thisDefIsTheMainOne :: IsMain -> Definition -> Bool
+thisDefIsTheMainOne NotMain _ = False
+thisDefIsTheMainOne IsMain def = prettyShow (qnameName $ defName def) == "main"
