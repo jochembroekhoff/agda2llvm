@@ -12,7 +12,7 @@ declare void @printf(i8*, ...)
 ;; Agda basic structures
 
 ; struct eval { struct value * (*value_ptr)(void *); void *record; }
-%agda.struct.eval = type { %agda.struct.value* (i8*)*, i8* }
+%agda.struct.eval = type { %agda.struct.value* (%agda.struct.frame*)*, %agda.struct.frame* }
 ; struct value { enum {value_fn,value_data} type; union {struct eval fn; void *value;} }
 %agda.struct.value = type { i64, [2 x i64] }
 %agda.struct.value.fn = type { i64, %agda.struct.eval } ; tag=0
@@ -21,6 +21,8 @@ declare void @printf(i8*, ...)
 %agda.struct.thunk = type { i64, [16 x i8] }
 %agda.struct.thunk.eval = type { i64, %agda.struct.eval } ; evaluated=false
 %agda.struct.thunk.value = type { i64, %agda.struct.value* } ; evaluated=true
+; struct frame { struct thunk *elem; struct frame *prev; }
+%agda.struct.frame = type { %agda.struct.thunk*, %agda.struct.frame* }
 ; struct data_base { size_t ID; size_t CASE; }
 %agda.data.base = type { i64, i64 }
 
@@ -66,12 +68,12 @@ define internal
 {
     ; retrieve function pointer
     %fn_ptr_ptr = getelementptr %agda.struct.eval, %agda.struct.eval* %eval, i32 0, i32 0
-    %fn_ptr = load %agda.struct.value* (i8*)*, %agda.struct.value* (i8*)** %fn_ptr_ptr
+    %fn_ptr = load %agda.struct.value* (%agda.struct.frame*)*, %agda.struct.value* (%agda.struct.frame*)** %fn_ptr_ptr
     ; retrieve record pointer
     %record_ptr_ptr = getelementptr %agda.struct.eval, %agda.struct.eval* %eval, i32 0, i32 1
-    %record_ptr = load i8*, i8** %record_ptr_ptr
+    %record_ptr = load %agda.struct.frame*, %agda.struct.frame** %record_ptr_ptr
     ; call function
-    %res = call %agda.struct.value* %fn_ptr (i8* %record_ptr)
+    %res = call %agda.struct.value* %fn_ptr (%agda.struct.frame* %record_ptr)
     ; immediately return the value
     ret %agda.struct.value* %res
 }
@@ -153,17 +155,25 @@ TypeIncorrect:
     ret %agda.struct.value* null
 }
 
+define
+%agda.struct.value*
+@agda.eval.appl.n(%agda.struct.thunk* %appl, ...)
+{
+    ; TODO: implement
+    ret %agda.struct.value* null
+}
+
 ; "Hello %p (TAG: %zu, ID: %zu, CASE: %zu)\n"
 @fmt = private constant [42 x i8] c"Hello: %p (TAG: %zu, ID: %zu, CASE: %zu)\0A\00"
 
 define
 %agda.struct.value*
-@agda.eval.main(%agda.struct.thunk*(i8*)* %main_fn)
+@agda.eval.main(%agda.struct.thunk*(%agda.struct.frame*)* %main_fn)
 {
     ; ensure that the garbage collector is initialized
     call void @GC_init()
     ; call the main definition to construct the root thunk
-    %main_thunk = call %agda.struct.thunk* %main_fn(i8* null)
+    %main_thunk = call %agda.struct.thunk* %main_fn(%agda.struct.frame* null)
     ; evaluate the result of the main definition
     %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %main_thunk)
     ; print the value pointer
@@ -183,4 +193,36 @@ define
         , i64 %v_case
         )
     ret %agda.struct.value* %v
+}
+
+;; Agda stack
+
+define
+void
+@agda.record.push_replace(%agda.struct.frame** %curr, %agda.struct.thunk* %elem)
+{
+    %alloc = call i8* @GC_malloc(i64 16)
+    %frame = bitcast i8* %alloc to %agda.struct.frame*
+
+    ; set frame->elem
+    %frame_elem_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %frame, i32 0, i32 0
+    store %agda.struct.thunk* %elem, %agda.struct.thunk** %frame_elem_ptr
+
+    ; set frame->prev
+    %frame_prev_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %frame, i32 0, i32 1
+    %curr_deref = load %agda.struct.frame*, %agda.struct.frame** %curr
+    store %agda.struct.frame* %curr_deref, %agda.struct.frame** %frame_prev_ptr
+
+    ; replace callee's pointer
+    store %agda.struct.frame* %frame, %agda.struct.frame** %curr
+
+    ret void
+}
+
+define
+%agda.struct.thunk*
+@agda.record.get(%agda.struct.frame*, i64)
+{
+    ; TODO: implement
+    ret %agda.struct.thunk* null
 }

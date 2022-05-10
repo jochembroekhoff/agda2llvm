@@ -1,7 +1,8 @@
 module Agda.Compiler.LLVM.ASyntax where
 
-newtype AIdent =
-  AIdent String
+data AIdent
+  = AIdent String
+  | AIdentRaw String
 
 data AEntry
   = AEntryThunk
@@ -10,6 +11,7 @@ data AEntry
       }
   | AEntryDirect
       { entryIdent :: AIdent
+      , entryPushArg :: Bool
       , entryBody :: ABody
       }
   | AEntryMain
@@ -29,8 +31,16 @@ data ABody
       { value :: AValue
       }
   | AAppl
-      { applSubj :: AIdent
-      , applArgs :: [AIdent]
+      { applSubj :: AArg
+      , applArgs :: [AArg]
+      }
+
+data AArg
+  = AExt
+      { extIdent :: AIdent
+      }
+  | ARecord
+      { recordIdx :: Int
       }
 
 data AValue
@@ -46,3 +56,5 @@ data AValue
 ---
 instance Semigroup AIdent where
   AIdent l <> AIdent r = AIdent (l <> r)
+  AIdentRaw l <> AIdentRaw r = AIdentRaw (l <> r)
+  _ <> _ = error "illegal associative operation"

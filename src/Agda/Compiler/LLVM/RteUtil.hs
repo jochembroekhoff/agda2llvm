@@ -12,7 +12,9 @@ typeDataBasePtr = LLVMPtr typeDataBase
 refAllocData :: LLVMRef
 refAllocData =
   LLVMGlobal
-    {refName = LLVMIdent "agda.alloc.data", refType = LLVMFn {fnRet = typeDataBasePtr, fnParams = [LLVMSizedInt 64]}}
+    { refName = LLVMIdent "agda.alloc.data"
+    , refType = LLVMFn {fnRet = typeDataBasePtr, fnParams = [LLVMSizedInt 64], fnVariadic = False}
+    }
 
 --- Value Struct ---
 typeValue :: LLVMType
@@ -35,7 +37,8 @@ typeValueFnPtr = LLVMPtr typeValueFn
 
 refAllocValue :: LLVMRef
 refAllocValue =
-  LLVMGlobal {refName = LLVMIdent "agda.alloc.value", refType = LLVMFn {fnRet = typeValuePtr, fnParams = []}}
+  LLVMGlobal
+    {refName = LLVMIdent "agda.alloc.value", refType = LLVMFn {fnRet = typeValuePtr, fnParams = [], fnVariadic = False}}
 
 --- Thunk Struct ---
 typeThunk :: LLVMType
@@ -58,24 +61,50 @@ typeThunkValuePtr = LLVMPtr typeThunkValue
 
 refAllocThunk :: LLVMRef
 refAllocThunk =
-  LLVMGlobal {refName = LLVMIdent "agda.alloc.thunk", refType = LLVMFn {fnRet = typeThunkPtr, fnParams = []}}
+  LLVMGlobal
+    {refName = LLVMIdent "agda.alloc.thunk", refType = LLVMFn {fnRet = typeThunkPtr, fnParams = [], fnVariadic = False}}
+
+--- Stack ---
+typeFrame :: LLVMType
+typeFrame = LLVMTRef $ LLVMIdent "agda.struct.frame"
+
+typeFramePtr :: LLVMType
+typeFramePtr = LLVMPtr typeFrame
+
+refRecordGet :: LLVMRef
+refRecordGet =
+  LLVMGlobal
+    { refName = LLVMIdent "agda.record.get"
+    , refType = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeFramePtr, LLVMSizedInt 64], fnVariadic = False}
+    }
 
 --- Misc ---
 refMain :: LLVMRef
 refMain =
   LLVMGlobal
-    {refName = LLVMIdent "agda.eval.main", refType = LLVMFn {fnRet = typeValuePtr, fnParams = [LLVMPtr typeFnCreator]}}
+    { refName = LLVMIdent "agda.eval.main"
+    , refType = LLVMFn {fnRet = typeValuePtr, fnParams = [LLVMPtr typeFnCreator], fnVariadic = False}
+    }
 
 refAppl0 :: LLVMRef
 refAppl0 =
   LLVMGlobal
-    {refName = LLVMIdent "agda.eval.appl.0", refType = LLVMFn {fnRet = typeValuePtr, fnParams = [typeThunkPtr]}}
+    { refName = LLVMIdent "agda.eval.appl.0"
+    , refType = LLVMFn {fnRet = typeValuePtr, fnParams = [typeThunkPtr], fnVariadic = False}
+    }
+
+refApplN :: LLVMRef
+refApplN =
+  LLVMGlobal
+    { refName = LLVMIdent "agda.eval.appl.n"
+    , refType = LLVMFn {fnRet = typeValuePtr, fnParams = [typeThunkPtr], fnVariadic = True}
+    }
 
 typeFnCreator :: LLVMType
-typeFnCreator = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeVoidPtr]}
+typeFnCreator = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeFramePtr], fnVariadic = False}
 
 typeFnEvaluator :: LLVMType
-typeFnEvaluator = LLVMFn {fnRet = typeValuePtr, fnParams = [typeVoidPtr]}
+typeFnEvaluator = LLVMFn {fnRet = typeValuePtr, fnParams = [typeFramePtr], fnVariadic = False}
 
 typeVoidPtr :: LLVMType
 typeVoidPtr = LLVMPtr $ LLVMSizedInt 8

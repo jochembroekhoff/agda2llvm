@@ -35,6 +35,7 @@ data LLVMType
   | LLVMFn
       { fnRet :: LLVMType
       , fnParams :: [LLVMType]
+      , fnVariadic :: Bool
       }
   | LLVMSizedInt
       { size :: Int

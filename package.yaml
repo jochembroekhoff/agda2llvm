@@ -65,4 +65,5 @@ default-extensions:
   - FlexibleInstances
   - LambdaCase
   - MultiParamTypeClasses
+  - ScopedTypeVariables
   - TupleSections

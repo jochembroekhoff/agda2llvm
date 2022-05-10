@@ -50,33 +50,84 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
              putStrLn $ prettyShow qn
              putStrLn $ prettyShow chead
              print nargs
-        Just <$> transformCtor (conName chead) nargs
+        name <- toA $ conName chead
+        let entries = transformCtor name (123, 456, nargs)
+        return $ Just (name, entries)
       AbstractDefn {} -> __IMPOSSIBLE__
       DataOrRecSig {} -> __IMPOSSIBLE__
+
+instance ToAbstractIntermediate QName AIdent where
+  toA qn = return $ AIdent $ prettyShow qn
 
 ---
 transformFunction :: QName -> TTerm -> TCM (AIdent, [AEntry])
 transformFunction qn tt = do
   let (appl, args) = tAppView tt
-  let qn' = AIdent $ prettyShow qn
-  (applIdent, applEntry) <- transformAnonymousTermLifted appl
+  qn' <- toA qn
+  applEntries <- transformIdentifiedAppl qn' (appl, args)
+  return (qn', applEntries)
+
+transformIdentifiedAppl :: AIdent -> (TTerm, [TTerm]) -> TCM [AEntry]
+transformIdentifiedAppl qn' (appl, args) = do
+  (applHolder, applEntries) <- transformAnonymousTermLifted appl
   args' <- traverse transformAnonymousTermLifted args
-  let argsIdents = map fst args'
-      argsEntries = concatMap snd args'
-  let fnEntries = [AEntryThunk {entryIdent = qn', entryThunk = AThunkDelay $ AAppl applIdent argsIdents}]
-  return (qn', fnEntries ++ applEntry ++ argsEntries)
+  let argHolders = map fst args'
+      argEntries = concatMap snd args'
+  let bodyEntry = AEntryThunk {entryIdent = qn', entryThunk = AThunkDelay $ AAppl applHolder argHolders}
+  return (applEntries ++ argEntries ++ [bodyEntry])
 
-transformAnonymousTermLifted :: TTerm -> TCM (AIdent, [AEntry])
-transformAnonymousTermLifted (TCon cn) = return (AIdent $ prettyShow cn, [])
-transformAnonymousTermLifted _ = undefined
-
-transformCtor :: QName -> Int -> TCM (AIdent, [AEntry])
-transformCtor cn nargs = do
-  let name' = AIdent $ prettyShow cn
+transformAnonymousTermLifted :: TTerm -> TCM (AArg, [AEntry])
+transformAnonymousTermLifted (TVar idx) = return (ARecord idx, [])
+transformAnonymousTermLifted (TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
+transformAnonymousTermLifted (TDef qn) = do
+  qn' <- toA qn
+  return (AExt qn', [])
+transformAnonymousTermLifted (TApp appl args) = do
+  let name' = AIdent "app-0"
+  applEntries <- transformIdentifiedAppl name' (appl, args)
+  return (AExt name', applEntries)
+transformAnonymousTermLifted (TLam inner) = do
+  let name' = AIdent "lam-0"
+      name'_inner = name' <> AIdent "-inner"
+  (innerIdent, innerEntries) <- transformAnonymousTermLifted inner
   return
-    ( name'
-    , [ AEntryThunk
-          { entryIdent = name'
-          , entryThunk = AThunkDelay $ AMkValue AValueData {dataIdx = 123, dataCase = 456, dataArity = nargs}
-          }
+    ( AExt name'
+    , innerEntries ++
+      [ AEntryThunk {entryIdent = name', entryThunk = AThunkValue AValueFn {fnIdent = name'_inner}}
+      , AEntryDirect {entryIdent = name'_inner, entryPushArg = True, entryBody = AAppl innerIdent []}
       ])
+transformAnonymousTermLifted (TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
+transformAnonymousTermLifted _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
+
+transformCtor :: AIdent -> (Int, Int, Int) -> [AEntry]
+transformCtor baseName (dataIdx, dataCase, 0) =
+  [ AEntryThunk
+      { entryIdent = baseName
+      , entryThunk = AThunkDelay $ AMkValue AValueData {dataIdx = dataIdx, dataCase = dataCase, dataArity = 0}
+      }
+  ]
+transformCtor baseName (dataIdx, dataCase, n) = go n
+  where
+    levelIdent 0 = baseName
+    levelIdent m = baseName <> AIdent ('-' : show m)
+    go lvl
+      | lvl < 0 = __IMPOSSIBLE__
+      | lvl == 0 =
+        [ AEntryThunk
+            {entryIdent = levelIdent lvl, entryThunk = AThunkDelay $ AMkValue AValueFn {fnIdent = levelIdent n}}
+        ]
+      | lvl == 1 = entryFinal : go (lvl - 1)
+      | otherwise = entryIntermediate : go (lvl - 1)
+      where
+        entryIntermediate =
+          AEntryDirect
+            { entryIdent = levelIdent lvl
+            , entryPushArg = True
+            , entryBody = AMkValue AValueFn {fnIdent = levelIdent (lvl - 1)}
+            }
+        entryFinal =
+          AEntryDirect
+            { entryIdent = levelIdent lvl
+            , entryPushArg = True
+            , entryBody = AMkValue AValueData {dataIdx = dataIdx, dataCase = dataCase, dataArity = n}
+            }

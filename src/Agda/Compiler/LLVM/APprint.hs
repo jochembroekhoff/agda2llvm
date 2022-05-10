@@ -14,10 +14,13 @@ class APretty a where
 
 instance APretty AIdent where
   aPretty (AIdent ident) = ident
+  aPretty (AIdentRaw identRaw) = identRaw
 
 instance APretty AEntry where
   aPretty (AEntryThunk ident thunk) = aPretty ident ++ "() =\n" ++ indent (aPretty thunk)
-  aPretty (AEntryDirect ident body) = aPretty ident ++ "() =\n" ++ indent (aPretty body)
+  aPretty (AEntryDirect ident False body) = aPretty ident ++ "() =\n" ++ indent (aPretty body)
+  aPretty (AEntryDirect ident True body) = aPretty ident ++ "(p) =\n" ++ indent (aPretty body)
+  aPretty (AEntryMain mainIdent) = "main() = <runtime-main>(" ++ aPretty mainIdent ++ ")"
 
 instance APretty AThunk where
   aPretty (AThunkDelay body) = "THUNK.delay{\n" ++ indent (aPretty body) ++ "}"
@@ -28,6 +31,10 @@ instance APretty ABody where
   aPretty (AAppl subj args) =
     unlines
       ["appl = " ++ aPretty subj ++ "()", "-- TODO: " ++ show (length args) ++ " arg(s)", "ret APPL(appl, ARGS...)"]
+
+instance APretty AArg where
+  aPretty (AExt extIdent) = aPretty extIdent ++ "()"
+  aPretty (ARecord idx) = "<record " ++ show idx ++ ">"
 
 instance APretty AValue where
   aPretty (AValueData idx kase arity) =

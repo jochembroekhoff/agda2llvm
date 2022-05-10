@@ -49,6 +49,7 @@ library
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      ScopedTypeVariables
       TupleSections
   build-depends:
       Agda >=2.6.2.1 && <2.6.3
@@ -73,6 +74,7 @@ executable agda2llvm-exe
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      ScopedTypeVariables
       TupleSections
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
@@ -100,6 +102,7 @@ test-suite agda2llvm-test
       FlexibleInstances
       LambdaCase
       MultiParamTypeClasses
+      ScopedTypeVariables
       TupleSections
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
