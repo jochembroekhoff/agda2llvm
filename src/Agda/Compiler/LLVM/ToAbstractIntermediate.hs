@@ -68,32 +68,32 @@ transformFunction qn tt = do
 
 transformIdentifiedAppl :: AIdent -> (TTerm, [TTerm]) -> Bool -> ToAM [AEntry]
 transformIdentifiedAppl qn' (appl, args) private = do
-  (applHolder, applEntries) <- toA appl
-  args' <- traverse toA args
+  (applHolder, applEntries) <- toA (qn', appl)
+  args' <- traverse (toA . (qn', )) args
   let argHolders = map fst args'
       argEntries = concatMap snd args'
   let bodyEntry =
         AEntryThunk {entryIdent = qn', entryPrivate = private, entryThunk = AThunkDelay $ AAppl applHolder argHolders}
   return (applEntries ++ argEntries ++ [bodyEntry])
 
-instance ToAbstractIntermediate TTerm (AArg, [AEntry]) where
-  toA (TVar idx) = return (ARecord idx, [])
-  toA (TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
-  toA (TDef qn) = do
+instance ToAbstractIntermediate (AIdent, TTerm) (AArg, [AEntry]) where
+  toA (_, TVar idx) = return (ARecord idx, [])
+  toA (_, TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
+  toA (_, TDef qn) = do
     qn' <- toA qn
     return (AExt qn', [])
-  toA (TApp appl args) = do
+  toA (qn, TApp appl args) = do
     next <- get
     modify (1 +)
-    let name' = AIdent ("app-" ++ show next)
+    let name' = qn <> AIdent ("--app-" ++ show next)
     applEntries <- transformIdentifiedAppl name' (appl, args) True
     return (AExt name', applEntries)
-  toA (TLam inner) = do
+  toA (qn, TLam inner) = do
     next <- get
     modify (1 +)
-    let name' = AIdent ("lam-" ++ show next)
+    let name' = qn <> AIdent ("--lam-" ++ show next)
         name'_inner = name' <> AIdent "-inner"
-    (innerIdent, innerEntries) <- toA inner
+    (innerIdent, innerEntries) <- toA (qn, inner)
     return
       ( AExt name'
       , innerEntries ++
@@ -101,8 +101,8 @@ instance ToAbstractIntermediate TTerm (AArg, [AEntry]) where
             {entryIdent = name', entryPrivate = True, entryThunk = AThunkValue AValueFn {fnIdent = name'_inner}}
         , AEntryDirect {entryIdent = name'_inner, entryPushArg = True, entryBody = AAppl innerIdent []}
         ])
-  toA (TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
-  toA (TCoerce tt) = toA tt
+  toA (_, TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
+  toA (qn, TCoerce tt) = toA (qn, tt)
   toA _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
 
 transformCtor :: AIdent -> (Int, Int, Int) -> [AEntry]
