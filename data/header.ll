@@ -39,10 +39,6 @@ declare
 
 declare
 %agda.struct.value*
-@agda.eval.appl.1(%agda.struct.thunk*, %agda.struct.thunk*)
-
-declare
-%agda.struct.value*
 @agda.eval.appl.n(%agda.struct.thunk*, ...)
 
 declare

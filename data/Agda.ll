@@ -155,18 +155,6 @@ TypeIncorrect:
     ret %agda.struct.value* null
 }
 
-define
-%agda.struct.value*
-@agda.eval.appl.1(%agda.struct.thunk* %appl, %agda.struct.thunk* %arg0)
-{
-    ; evaluate the value to apply 1 argument to
-    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %appl)
-
-    ; offload rest to the common application helper
-    %res = call %agda.struct.value* @agda.eval.appl.do_checked(%agda.struct.value* %v, %agda.struct.thunk* %arg0)
-    ret %agda.struct.value* %res
-}
-
 @str.appln_loop = private constant [19 x i8] c"AGDA: appl.n iter\0A\00"
 @str.appln_end = private constant [18 x i8] c"AGDA: appl.n end\0A\00"
 
