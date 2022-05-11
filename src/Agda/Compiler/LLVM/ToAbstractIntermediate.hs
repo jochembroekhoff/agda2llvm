@@ -68,41 +68,42 @@ transformFunction qn tt = do
 
 transformIdentifiedAppl :: AIdent -> (TTerm, [TTerm]) -> Bool -> ToAM [AEntry]
 transformIdentifiedAppl qn' (appl, args) private = do
-  (applHolder, applEntries) <- transformAnonymousTermLifted appl
-  args' <- traverse transformAnonymousTermLifted args
+  (applHolder, applEntries) <- toA appl
+  args' <- traverse toA args
   let argHolders = map fst args'
       argEntries = concatMap snd args'
   let bodyEntry =
         AEntryThunk {entryIdent = qn', entryPrivate = private, entryThunk = AThunkDelay $ AAppl applHolder argHolders}
   return (applEntries ++ argEntries ++ [bodyEntry])
 
-transformAnonymousTermLifted :: TTerm -> ToAM (AArg, [AEntry])
-transformAnonymousTermLifted (TVar idx) = return (ARecord idx, [])
-transformAnonymousTermLifted (TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
-transformAnonymousTermLifted (TDef qn) = do
-  qn' <- toA qn
-  return (AExt qn', [])
-transformAnonymousTermLifted (TApp appl args) = do
-  next <- get
-  modify (1 +)
-  let name' = AIdent ("app-" ++ show next)
-  applEntries <- transformIdentifiedAppl name' (appl, args) True
-  return (AExt name', applEntries)
-transformAnonymousTermLifted (TLam inner) = do
-  next <- get
-  modify (1 +)
-  let name' = AIdent ("lam-" ++ show next)
-      name'_inner = name' <> AIdent "-inner"
-  (innerIdent, innerEntries) <- transformAnonymousTermLifted inner
-  return
-    ( AExt name'
-    , innerEntries ++
-      [ AEntryThunk {entryIdent = name', entryPrivate = True, entryThunk = AThunkValue AValueFn {fnIdent = name'_inner}}
-      , AEntryDirect {entryIdent = name'_inner, entryPushArg = True, entryBody = AAppl innerIdent []}
-      ])
-transformAnonymousTermLifted (TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
-transformAnonymousTermLifted (TCoerce tt) = transformAnonymousTermLifted tt
-transformAnonymousTermLifted _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
+instance ToAbstractIntermediate TTerm (AArg, [AEntry]) where
+  toA (TVar idx) = return (ARecord idx, [])
+  toA (TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
+  toA (TDef qn) = do
+    qn' <- toA qn
+    return (AExt qn', [])
+  toA (TApp appl args) = do
+    next <- get
+    modify (1 +)
+    let name' = AIdent ("app-" ++ show next)
+    applEntries <- transformIdentifiedAppl name' (appl, args) True
+    return (AExt name', applEntries)
+  toA (TLam inner) = do
+    next <- get
+    modify (1 +)
+    let name' = AIdent ("lam-" ++ show next)
+        name'_inner = name' <> AIdent "-inner"
+    (innerIdent, innerEntries) <- toA inner
+    return
+      ( AExt name'
+      , innerEntries ++
+        [ AEntryThunk
+            {entryIdent = name', entryPrivate = True, entryThunk = AThunkValue AValueFn {fnIdent = name'_inner}}
+        , AEntryDirect {entryIdent = name'_inner, entryPushArg = True, entryBody = AAppl innerIdent []}
+        ])
+  toA (TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
+  toA (TCoerce tt) = toA tt
+  toA _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
 
 transformCtor :: AIdent -> (Int, Int, Int) -> [AEntry]
 transformCtor baseName (dataIdx, dataCase, 0) =
