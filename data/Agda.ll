@@ -9,6 +9,12 @@ declare i8* @malloc(i64)
 declare void @free(i8*)
 declare void @printf(i8*, ...)
 
+;; LLVM
+
+%struct.va_list = type { i32, i32, i8*, i8* }
+declare void @llvm.va_start(i8*)
+declare void @llvm.va_end(i8*)
+
 ;; Agda basic structures
 
 ; struct eval { struct value * (*value_ptr)(void *); void *record; }
@@ -160,10 +166,6 @@ define
     %res = call %agda.struct.value* @agda.eval.appl.do_checked(%agda.struct.value* %v, %agda.struct.thunk* %arg0)
     ret %agda.struct.value* %res
 }
-
-%struct.va_list = type { i32, i32, i8*, i8* }
-declare void @llvm.va_start(i8*)
-declare void @llvm.va_end(i8*)
 
 @str.appln_loop = private constant [19 x i8] c"AGDA: appl.n iter\0A\00"
 @str.appln_end = private constant [18 x i8] c"AGDA: appl.n end\0A\00"
