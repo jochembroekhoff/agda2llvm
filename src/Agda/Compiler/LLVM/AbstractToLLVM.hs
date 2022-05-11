@@ -145,7 +145,12 @@ instance AToLlvm (AIdent, Bool, ABody) LLVMEntry where
 bodyTemplate :: AIdent -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
 bodyTemplate ident instructions =
   LLVMFnDefn
-    { fnSign = LLVMFnSign {fnName = aToLlvm ident, fnType = typeValuePtr, fnArgs = [(typeFramePtr, llvmIdent "record")]}
+    { fnSign =
+        LLVMFnSign
+          { fnName = aToLlvm ident
+          , fnType = typeValuePtr
+          , fnArgs = [(typeFramePtr, llvmIdent "record"), (typeThunkPtr, llvmIdent "arg")]
+          }
     , body = [LLVMBlock "begin" (instructions ++ [returnTheValue])]
     }
   where

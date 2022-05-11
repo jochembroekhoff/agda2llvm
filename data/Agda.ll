@@ -12,7 +12,7 @@ declare void @printf(i8*, ...)
 ;; Agda basic structures
 
 ; struct eval { struct value * (*value_ptr)(void *); void *record; }
-%agda.struct.eval = type { %agda.struct.value* (%agda.struct.frame*)*, %agda.struct.frame* }
+%agda.struct.eval = type { %agda.struct.value* (%agda.struct.frame*, %agda.struct.thunk*)*, %agda.struct.frame* }
 ; struct value { enum {value_fn,value_data} type; union {struct eval fn; void *value;} }
 %agda.struct.value = type { i64, [2 x i64] }
 %agda.struct.value.fn = type { i64, %agda.struct.eval } ; tag=0
@@ -64,16 +64,16 @@ define
 
 define internal
 %agda.struct.value*
-@agda.eval.eval(%agda.struct.eval* %eval)
+@agda.eval.eval(%agda.struct.eval* %eval, %agda.struct.thunk* %arg)
 {
     ; retrieve function pointer
     %fn_ptr_ptr = getelementptr %agda.struct.eval, %agda.struct.eval* %eval, i32 0, i32 0
-    %fn_ptr = load %agda.struct.value* (%agda.struct.frame*)*, %agda.struct.value* (%agda.struct.frame*)** %fn_ptr_ptr
+    %fn_ptr = load %agda.struct.value* (%agda.struct.frame*, %agda.struct.thunk*)*, %agda.struct.value* (%agda.struct.frame*, %agda.struct.thunk*)** %fn_ptr_ptr
     ; retrieve record pointer
     %record_ptr_ptr = getelementptr %agda.struct.eval, %agda.struct.eval* %eval, i32 0, i32 1
     %record_ptr = load %agda.struct.frame*, %agda.struct.frame** %record_ptr_ptr
     ; call function
-    %res = call %agda.struct.value* %fn_ptr (%agda.struct.frame* %record_ptr)
+    %res = call %agda.struct.value* %fn_ptr (%agda.struct.frame* %record_ptr, %agda.struct.thunk* %arg)
     ; immediately return the value
     ret %agda.struct.value* %res
 }
@@ -101,7 +101,7 @@ NotEvaluated:
     %thunk_e = bitcast %agda.struct.thunk* %thunk to %agda.struct.thunk.eval*
     %eval_ptr = getelementptr %agda.struct.thunk.eval, %agda.struct.thunk.eval* %thunk_e, i32 0, i32 1
     ; call the evaluation
-    %new_value = call %agda.struct.value* @agda.eval.eval(%agda.struct.eval* %eval_ptr)
+    %new_value = call %agda.struct.value* @agda.eval.eval(%agda.struct.eval* %eval_ptr, %agda.struct.thunk* null)
     ; store the new value
     store %agda.struct.value* %new_value, %agda.struct.value** %value_ptr_ptr
     ; continue as if the value as evaluated
@@ -113,8 +113,6 @@ AlreadyEvaluated:
     ret %agda.struct.value* %final_value
 }
 
-@.str.TypeIncorrect = private constant [16 x i8] c"TypeIncorrect!\0A\00"
-
 define
 %agda.struct.value*
 @agda.eval.appl.0(%agda.struct.thunk* %appl)
@@ -124,17 +122,13 @@ define
     ret %agda.struct.value* %v
 }
 
+@.str.TypeIncorrect = private constant [35 x i8] c"AGDA: cannot apply to non-fn data\0A\00"
+
 define
+internal
 %agda.struct.value*
-@agda.eval.appl.1(%agda.struct.thunk* %appl, %agda.struct.thunk* %arg0)
+@agda.eval.appl.do_checked(%agda.struct.value* %v, %agda.struct.thunk* %arg)
 {
-    ; TODO: the argument is currently not passed at all.
-    ;       this needs to be implemented in the eval handler?
-    ;       reason: always want to pass record, e.g. for saving parameters
-
-    ; evaluate the value to apply 1 argument to
-    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %appl)
-
     ; value must be a function, otherwise can't apply. check that now
     %v_tag_ptr = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
     %v_tag = load i64, i64* %v_tag_ptr
@@ -146,25 +140,91 @@ TypeCorrect:
     %v_fn = bitcast %agda.struct.value* %v to %agda.struct.value.fn*
     %eval_info = getelementptr %agda.struct.value.fn, %agda.struct.value.fn* %v_fn, i32 0, i32 1
     ; evaluate the function
-    %eval_res = call %agda.struct.value* @agda.eval.eval(%agda.struct.eval* %eval_info)
+    %eval_res = call %agda.struct.value* @agda.eval.eval(%agda.struct.eval* %eval_info, %agda.struct.thunk* null)
     ; return the evaluation result
     ret %agda.struct.value* %eval_res
 
 TypeIncorrect:
-    call void (i8*, ...) @printf(i8* getelementptr ([16 x i8], [16 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
+    call void (i8*, ...) @printf(i8* getelementptr ([35 x i8], [35 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
     ret %agda.struct.value* null
 }
 
 define
 %agda.struct.value*
+@agda.eval.appl.1(%agda.struct.thunk* %appl, %agda.struct.thunk* %arg0)
+{
+    ; evaluate the value to apply 1 argument to
+    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %appl)
+
+    ; offload rest to the common application helper
+    %res = call %agda.struct.value* @agda.eval.appl.do_checked(%agda.struct.value* %v, %agda.struct.thunk* %arg0)
+    ret %agda.struct.value* %res
+}
+
+%struct.va_list = type { i32, i32, i8*, i8* }
+declare void @llvm.va_start(i8*)
+declare void @llvm.va_end(i8*)
+
+@str.appln_loop = private constant [19 x i8] c"AGDA: appl.n iter\0A\00"
+@str.appln_end = private constant [18 x i8] c"AGDA: appl.n end\0A\00"
+
+define
+%agda.struct.value*
 @agda.eval.appl.n(%agda.struct.thunk* %appl, ...)
 {
-    ; TODO: implement
+begin:
+    ; init result value holder
+    %v = alloca %agda.struct.value*
+
+    ; init varargs
+    %ap = alloca %struct.va_list
+    %ap_raw = bitcast %struct.va_list* %ap to i8*
+    call void @llvm.va_start(i8* %ap_raw)
+
+    ; force the subject to get the initial value to apply to
+    %v_initial = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %appl)
+    store %agda.struct.value* %v_initial, %agda.struct.value** %v
+
+    br label %loopBegin
+
+loopBegin:
+    ; load the next arg from the varargs
+    %arg = va_arg %struct.va_list* %ap, %agda.struct.thunk*
+    ; check if the end is reached, i.e. when arg==NULL
+    %arg_null = icmp eq %agda.struct.thunk* %arg, null
+    br i1 %arg_null, label %end, label %loopBody
+
+loopBody:
+    ; debug print
+    call void(i8*, ...) @printf(i8* getelementptr ([19 x i8], [19 x i8]* @str.appln_loop, i32 0, i32 0))
+    ; apply the current arg to the current function
+    %v_ptr0 = load %agda.struct.value*, %agda.struct.value** %v
+    %v_next = call %agda.struct.value* @agda.eval.appl.do_checked(%agda.struct.value* %v_ptr0, %agda.struct.thunk* %arg)
+    ; if the returned value is NULL, some error occurred in do_checked
+    %v_next_null = icmp eq %agda.struct.value* %v_next, null
+    br i1 %v_next_null, label %error, label %loopPrepNext
+
+loopPrepNext:
+    ; persist v_next for the next iteration
+    store %agda.struct.value* %v_next, %agda.struct.value** %v
+    br label %loopBegin
+
+end:
+    ; debug print
+    call void(i8*, ...) @printf(i8* getelementptr ([18 x i8], [18 x i8]* @str.appln_end, i32 0, i32 0))
+    ; finalize the varargs and return the last value
+    call void @llvm.va_end(i8* %ap_raw)
+    %v_ptr1 = load %agda.struct.value*, %agda.struct.value** %v
+    ret %agda.struct.value* %v_ptr1
+
+error:
+    ; finalize the varargs and return NULL
+    call void @llvm.va_end(i8* %ap_raw)
     ret %agda.struct.value* null
 }
 
-; "Hello %p (TAG: %zu, ID: %zu, CASE: %zu)\n"
-@fmt = private constant [42 x i8] c"Hello: %p (TAG: %zu, ID: %zu, CASE: %zu)\0A\00"
+; "AGDA: result: %p (TAG: %zu, ID: %zu, CASE: %zu)\n"
+@fmt = private constant [49 x i8] c"AGDA: result: %p (TAG: %zu, ID: %zu, CASE: %zu)\0A\00"
 
 define
 %agda.struct.value*
@@ -186,7 +246,7 @@ define
     %v_id = load i64, i64* %v_id_ptr
     %v_case_ptr = getelementptr %agda.data.base, %agda.data.base* %v_base_ptr, i32 0, i32 1
     %v_case = load i64, i64* %v_case_ptr
-    call void(i8*, ...) @printf(i8* getelementptr ([42 x i8], [42 x i8]* @fmt, i32 0, i32 0)
+    call void(i8*, ...) @printf(i8* getelementptr ([49 x i8], [49 x i8]* @fmt, i32 0, i32 0)
         , %agda.struct.value* %v
         , i64 %v_tag
         , i64 %v_id
@@ -224,5 +284,6 @@ define
 @agda.record.get(%agda.struct.frame*, i64)
 {
     ; TODO: implement
-    ret %agda.struct.thunk* null
+    %tmp = inttoptr i64 1 to %agda.struct.thunk*
+    ret %agda.struct.thunk* %tmp
 }

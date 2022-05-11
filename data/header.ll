@@ -3,7 +3,7 @@
 ;; Agda basic structures
 
 ; struct eval { struct value * (*value_ptr)(void *); void *record; }
-%agda.struct.eval = type { %agda.struct.value* (%agda.struct.frame*)*, %agda.struct.frame* }
+%agda.struct.eval = type { %agda.struct.value* (%agda.struct.frame*, %agda.struct.thunk*)*, %agda.struct.frame* }
 ; struct value { enum {value_fn,value_data} type; union {struct eval fn; void *value;} }
 %agda.struct.value = type { i64, [2 x i64] }
 %agda.struct.value.fn = type { i64, %agda.struct.eval } ; tag=0

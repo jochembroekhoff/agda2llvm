@@ -104,7 +104,7 @@ typeFnCreator :: LLVMType
 typeFnCreator = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeFramePtr], fnVariadic = False}
 
 typeFnEvaluator :: LLVMType
-typeFnEvaluator = LLVMFn {fnRet = typeValuePtr, fnParams = [typeFramePtr], fnVariadic = False}
+typeFnEvaluator = LLVMFn {fnRet = typeValuePtr, fnParams = [typeFramePtr, typeThunkPtr], fnVariadic = False}
 
 typeVoidPtr :: LLVMType
 typeVoidPtr = LLVMPtr $ LLVMSizedInt 8
