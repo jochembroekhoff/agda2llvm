@@ -29,8 +29,8 @@ declare void @llvm.va_end(i8*)
 %agda.struct.thunk.value = type { i64, %agda.struct.value* } ; evaluated=true
 ; struct frame { struct thunk *elem; struct frame *prev; }
 %agda.struct.frame = type { %agda.struct.thunk*, %agda.struct.frame* }
-; struct data_base { size_t ID; size_t CASE; }
-%agda.data.base = type { i64, i64 }
+; struct data_base { size_t ID; size_t CASE; struct frame *content; }
+%agda.data.base = type { i64, i64, %agda.struct.frame* }
 
 ;; Agda table reference
 
@@ -213,8 +213,7 @@ error:
     ret %agda.struct.value* null
 }
 
-; "AGDA: result: %p (TAG: %zu, ID: %zu, CASE: %zu)\n"
-@fmt = private constant [49 x i8] c"AGDA: result: %p (TAG: %zu, ID: %zu, CASE: %zu)\0A\00"
+@fmt = private constant [62 x i8] c"AGDA: result: %p (TAG: %zu, ID: %zu, CASE: %zu, content: %p)\0A\00"
 
 define
 %agda.struct.value*
@@ -236,11 +235,14 @@ define
     %v_id = load i64, i64* %v_id_ptr
     %v_case_ptr = getelementptr %agda.data.base, %agda.data.base* %v_base_ptr, i32 0, i32 1
     %v_case = load i64, i64* %v_case_ptr
-    call void(i8*, ...) @printf(i8* getelementptr ([49 x i8], [49 x i8]* @fmt, i32 0, i32 0)
+    %v_content_ptr = getelementptr %agda.data.base, %agda.data.base* %v_base_ptr, i32 0, i32 2
+    %v_content = load %agda.struct.frame*, %agda.struct.frame** %v_content_ptr
+    call void(i8*, ...) @printf(i8* getelementptr ([62 x i8], [62 x i8]* @fmt, i32 0, i32 0)
         , %agda.struct.value* %v
         , i64 %v_tag
         , i64 %v_id
         , i64 %v_case
+        , %agda.struct.frame* %v_content
         )
     ret %agda.struct.value* %v
 }

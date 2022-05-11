@@ -208,7 +208,7 @@ instance AToLlvm (AArg, Int) (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)]) w
 instance AToLlvm AValue [(Maybe LLVMIdent, LLVMInstruction)] where
   aToLlvm (AValueData idx kase arity) = createData ++ populateData ++ createValue ++ populateValue
     where
-      dataBaseSize = 16
+      dataBaseSize = 24
       dataSize = dataBaseSize + 8 * arity
       createData
         -- initialize empty data base
@@ -232,6 +232,15 @@ instance AToLlvm AValue [(Maybe LLVMIdent, LLVMInstruction)] where
           LLVMStore
             { storeSrc = LLVMLit $ LLVMInt (LLVMSizedInt 64) kase
             , storeDest = LLVMLocal (llvmIdent "data_base_case") (LLVMPtr $ LLVMSizedInt 64)
+            }
+        -- store content (= current record)
+        , llvmRecord "data_base_content" $
+          LLVMGetElementPtr
+            {elemBase = typeDataBase, elemSrc = LLVMLocal (llvmIdent "data_base") typeDataBasePtr, elemIndices = [0, 2]}
+        , llvmDiscard $
+          LLVMStore
+            { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
+            , storeDest = LLVMLocal (llvmIdent "data_base_content") (LLVMPtr typeFramePtr)
             }
         ]
       populateData
