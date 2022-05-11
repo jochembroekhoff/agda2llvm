@@ -13,8 +13,10 @@ instance AToLlvm AIdent LLVMIdent where
   aToLlvm (AIdent ident) = llvmIdent ident
   aToLlvm (AIdentRaw identRaw) = LLVMIdent identRaw
 
-instance AToLlvm AEntry [LLVMEntry] where
-  aToLlvm (AEntryThunk ident thunk) = thunkConstructor : maybeToList thunkEvaluator
+instance AToLlvm AEntry [LLVMEntry]
+  -- TODO: respect the private flag (should correspond to LLVM private modifier)
+                                                                                 where
+  aToLlvm (AEntryThunk ident _ thunk) = thunkConstructor : maybeToList thunkEvaluator
     where
       (thunkConstructor, thunkEvaluator) = aToLlvm (ident, thunk)
   aToLlvm (AEntryDirect ident push body) = [aToLlvm (ident, push, body)]

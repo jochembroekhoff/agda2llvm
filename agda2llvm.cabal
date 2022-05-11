@@ -59,6 +59,7 @@ library
     , directory
     , filepath >=1.4 && <2
     , ghc
+    , mtl >=2.2.2 && <3
   default-language: Haskell2010
 
 executable agda2llvm-exe
@@ -86,6 +87,7 @@ executable agda2llvm-exe
     , directory
     , filepath >=1.4 && <2
     , ghc
+    , mtl >=2.2.2 && <3
   default-language: Haskell2010
 
 test-suite agda2llvm-test
@@ -114,4 +116,5 @@ test-suite agda2llvm-test
     , directory
     , filepath >=1.4 && <2
     , ghc
+    , mtl >=2.2.2 && <3
   default-language: Haskell2010

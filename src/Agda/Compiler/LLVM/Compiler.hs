@@ -17,6 +17,7 @@ import Agda.Interaction.Options (OptDescr)
 import Agda.Utils.Pretty (prettyShow)
 import Agda.Utils.Tuple (mapFstM)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.State
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Debug.Trace (trace)
@@ -84,7 +85,7 @@ llvmPostModule _ _ main m defs = do
 
 llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM [AEntry]
 llvmCompileDef _ _ isMain def = do
-  res <- toA def
+  res <- evalStateT (toA def) 0
   case res of
     Nothing -> return []
     Just (name, entries) -> return (entries ++ [AEntryMain name | thisDefIsTheMainOne isMain def])

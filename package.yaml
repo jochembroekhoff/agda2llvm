@@ -27,6 +27,7 @@ dependencies:
 - filepath >= 1.4 && < 2
 - containers
 - directory
+- mtl >= 2.2.2 && < 3
 
 data-dir: data
 data-files:

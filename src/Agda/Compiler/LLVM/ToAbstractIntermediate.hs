@@ -14,9 +14,12 @@ import Agda.Utils.Lens
 import Agda.Utils.Maybe (liftMaybe)
 import Agda.Utils.Pretty (prettyShow)
 import Control.Monad.IO.Class (MonadIO(liftIO))
+import Control.Monad.State
+
+type ToAM = StateT Int TCM
 
 class ToAbstractIntermediate a b where
-  toA :: a -> TCM b
+  toA :: a -> ToAM b
 
 instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
   toA def
@@ -30,8 +33,9 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
         | d ^. funInline -> return Nothing
       Function {} -> do
         tl <-
-          do v <- toTreeless LazyEvaluation qn
-             mapM normalizeNames v
+          liftTCM
+            do v <- toTreeless LazyEvaluation qn
+               mapM normalizeNames v
         liftIO
           do putStr "FUNCTION: "
              putStrLn $ prettyShow qn
@@ -45,11 +49,6 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
       Datatype {} -> return Nothing
       Record {} -> return Nothing
       Constructor {conSrcCon = chead, conArity = nargs} -> do
-        liftIO
-          do putStr "CONSTRUCTOR: "
-             putStrLn $ prettyShow qn
-             putStrLn $ prettyShow chead
-             print nargs
         name <- toA $ conName chead
         let entries = transformCtor name (123, 456, nargs)
         return $ Just (name, entries)
@@ -60,49 +59,56 @@ instance ToAbstractIntermediate QName AIdent where
   toA qn = return $ AIdent $ prettyShow qn
 
 ---
-transformFunction :: QName -> TTerm -> TCM (AIdent, [AEntry])
+transformFunction :: QName -> TTerm -> ToAM (AIdent, [AEntry])
 transformFunction qn tt = do
   let (appl, args) = tAppView tt
   qn' <- toA qn
-  applEntries <- transformIdentifiedAppl qn' (appl, args)
+  applEntries <- transformIdentifiedAppl qn' (appl, args) False
   return (qn', applEntries)
 
-transformIdentifiedAppl :: AIdent -> (TTerm, [TTerm]) -> TCM [AEntry]
-transformIdentifiedAppl qn' (appl, args) = do
+transformIdentifiedAppl :: AIdent -> (TTerm, [TTerm]) -> Bool -> ToAM [AEntry]
+transformIdentifiedAppl qn' (appl, args) private = do
   (applHolder, applEntries) <- transformAnonymousTermLifted appl
   args' <- traverse transformAnonymousTermLifted args
   let argHolders = map fst args'
       argEntries = concatMap snd args'
-  let bodyEntry = AEntryThunk {entryIdent = qn', entryThunk = AThunkDelay $ AAppl applHolder argHolders}
+  let bodyEntry =
+        AEntryThunk {entryIdent = qn', entryPrivate = private, entryThunk = AThunkDelay $ AAppl applHolder argHolders}
   return (applEntries ++ argEntries ++ [bodyEntry])
 
-transformAnonymousTermLifted :: TTerm -> TCM (AArg, [AEntry])
+transformAnonymousTermLifted :: TTerm -> ToAM (AArg, [AEntry])
 transformAnonymousTermLifted (TVar idx) = return (ARecord idx, [])
 transformAnonymousTermLifted (TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
 transformAnonymousTermLifted (TDef qn) = do
   qn' <- toA qn
   return (AExt qn', [])
 transformAnonymousTermLifted (TApp appl args) = do
-  let name' = AIdent "app-0"
-  applEntries <- transformIdentifiedAppl name' (appl, args)
+  next <- get
+  modify (1 +)
+  let name' = AIdent ("app-" ++ show next)
+  applEntries <- transformIdentifiedAppl name' (appl, args) True
   return (AExt name', applEntries)
 transformAnonymousTermLifted (TLam inner) = do
-  let name' = AIdent "lam-0"
+  next <- get
+  modify (1 +)
+  let name' = AIdent ("lam-" ++ show next)
       name'_inner = name' <> AIdent "-inner"
   (innerIdent, innerEntries) <- transformAnonymousTermLifted inner
   return
     ( AExt name'
     , innerEntries ++
-      [ AEntryThunk {entryIdent = name', entryThunk = AThunkValue AValueFn {fnIdent = name'_inner}}
+      [ AEntryThunk {entryIdent = name', entryPrivate = True, entryThunk = AThunkValue AValueFn {fnIdent = name'_inner}}
       , AEntryDirect {entryIdent = name'_inner, entryPushArg = True, entryBody = AAppl innerIdent []}
       ])
 transformAnonymousTermLifted (TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
+transformAnonymousTermLifted (TCoerce tt) = transformAnonymousTermLifted tt
 transformAnonymousTermLifted _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
 
 transformCtor :: AIdent -> (Int, Int, Int) -> [AEntry]
 transformCtor baseName (dataIdx, dataCase, 0) =
   [ AEntryThunk
       { entryIdent = baseName
+      , entryPrivate = False
       , entryThunk = AThunkDelay $ AMkValue AValueData {dataIdx = dataIdx, dataCase = dataCase, dataArity = 0}
       }
   ]
@@ -114,7 +120,10 @@ transformCtor baseName (dataIdx, dataCase, n) = go n
       | lvl < 0 = __IMPOSSIBLE__
       | lvl == 0 =
         [ AEntryThunk
-            {entryIdent = levelIdent lvl, entryThunk = AThunkDelay $ AMkValue AValueFn {fnIdent = levelIdent n}}
+            { entryIdent = levelIdent lvl
+            , entryPrivate = False
+            , entryThunk = AThunkDelay $ AMkValue AValueFn {fnIdent = levelIdent n}
+            }
         ]
       | lvl == 1 = entryFinal : go (lvl - 1)
       | otherwise = entryIntermediate : go (lvl - 1)

@@ -17,7 +17,7 @@ instance APretty AIdent where
   aPretty (AIdentRaw identRaw) = identRaw
 
 instance APretty AEntry where
-  aPretty (AEntryThunk ident thunk) = aPretty ident ++ "() =\n" ++ indent (aPretty thunk)
+  aPretty (AEntryThunk ident _ thunk) = aPretty ident ++ "() =\n" ++ indent (aPretty thunk)
   aPretty (AEntryDirect ident False body) = aPretty ident ++ "() =\n" ++ indent (aPretty body)
   aPretty (AEntryDirect ident True body) = aPretty ident ++ "(p) =\n" ++ indent (aPretty body)
   aPretty (AEntryMain mainIdent) = "main() = <runtime-main>(" ++ aPretty mainIdent ++ ")"

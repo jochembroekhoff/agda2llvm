@@ -7,6 +7,7 @@ data AIdent
 data AEntry
   = AEntryThunk
       { entryIdent :: AIdent
+      , entryPrivate :: Bool
       , entryThunk :: AThunk
       }
   | AEntryDirect
