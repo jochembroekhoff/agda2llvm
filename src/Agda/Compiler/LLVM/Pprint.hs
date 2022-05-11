@@ -54,11 +54,13 @@ instance LLVMPretty (Maybe LLVMIdent, LLVMInstruction) where
   llvmPretty (Just ident, instr) = '%' : llvmPretty ident ++ " = " ++ llvmPretty instr
 
 instance LLVMPretty LLVMInstruction where
+  llvmPretty (LLVMAlloca t) = "alloca " ++ llvmPretty t
   llvmPretty (LLVMBitcast from to) = "bitcast " ++ llvmPretty from ++ " to " ++ llvmPretty to
   llvmPretty (LLVMCall ref args) = "call " ++ llvmPretty ref ++ "(" ++ llvmPrettyComma args ++ ")"
   llvmPretty (LLVMGetElementPtr t ref indices) = "getelementptr " ++ llvmPretty t ++ ", " ++ llvmPretty ref ++ indices'
     where
       indices' = concatMap (\i -> ", i32 " ++ show i) indices
+  llvmPretty (LLVMLoad t src) = "load " ++ llvmPretty t ++ ", " ++ llvmPretty src
   llvmPretty (LLVMRet Nothing) = "ret void"
   llvmPretty (LLVMRet (Just v)) = "ret " ++ llvmPretty v
   llvmPretty (LLVMStore src dest) = "store " ++ llvmPretty src ++ ", " ++ llvmPretty dest

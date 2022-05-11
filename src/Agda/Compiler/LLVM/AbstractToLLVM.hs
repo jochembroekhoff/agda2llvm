@@ -120,11 +120,12 @@ thunkCreatorTemplate ident isEval instructions =
     returnThunkHolder = llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr
 
 instance AToLlvm (AIdent, Bool, ABody) LLVMEntry where
-  aToLlvm (ident, _, AMkValue value) = bodyTemplate ident (aToLlvm value)
+  aToLlvm (ident, push, AMkValue value) = bodyTemplate ident push (aToLlvm value)
   -- appl(0)
-  aToLlvm (ident, _, AAppl (AExt subj) []) =
+  aToLlvm (ident, push, AAppl (AExt subj) []) =
     bodyTemplate
       ident
+      push
     -- let the callee create its thunk
       [ llvmRecord "appl" $
         LLVMCall {callRef = LLVMGlobal (aToLlvm subj) typeFnCreator, callArgs = [LLVMLit $ LLVMNull typeFramePtr]}
@@ -132,7 +133,7 @@ instance AToLlvm (AIdent, Bool, ABody) LLVMEntry where
       , llvmRecord "v" $ LLVMCall {callRef = refAppl0, callArgs = [LLVMRef $ LLVMLocal (llvmIdent "appl") typeThunkPtr]}
       ]
   -- appl(n)
-  aToLlvm (ident, _, AAppl subj args) = bodyTemplate ident (instrSubj ++ instrArgs ++ instrDoApply)
+  aToLlvm (ident, push, AAppl subj args) = bodyTemplate ident push (instrSubj ++ instrArgs ++ instrDoApply)
     where
       (refSubj, instrSubj) = aToLlvm (subj, 0 :: Int)
       args' = zipWith (curry aToLlvm) args ([1 ..] :: [Int])
@@ -142,18 +143,47 @@ instance AToLlvm (AIdent, Bool, ABody) LLVMEntry where
       terminatorArg = LLVMLit $ LLVMNull typeThunkPtr
       instrDoApply = [llvmRecord "v" $ LLVMCall {callRef = refApplN, callArgs = refSubj : refsArgs ++ [terminatorArg]}]
 
-bodyTemplate :: AIdent -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
-bodyTemplate ident instructions =
+bodyTemplate :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
+bodyTemplate ident push instructions =
   LLVMFnDefn
     { fnSign =
         LLVMFnSign
           { fnName = aToLlvm ident
           , fnType = typeValuePtr
-          , fnArgs = [(typeFramePtr, llvmIdent "record"), (typeThunkPtr, llvmIdent "arg")]
+          , fnArgs = [(typeFramePtr, llvmIdent recordParamName), (typeThunkPtr, llvmIdent "arg")]
           }
-    , body = [LLVMBlock "begin" (instructions ++ [returnTheValue])]
+    , body = [LLVMBlock "begin" (pushTheArg ++ instructions ++ [returnTheValue])]
     }
   where
+    recordParamName =
+      if push
+        then "record_orig"
+        else "record"
+    pushTheArg =
+      if push
+      -- allocate a working pointer-pointer to replace the record
+        then [ llvmRecord "record_work_ptr" $ LLVMAlloca typeFramePtr
+      -- load the pointer from the fn argument into the work pointer
+             , llvmDiscard $
+               LLVMStore
+                 { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "record_orig") typeFramePtr
+                 , storeDest = LLVMLocal (llvmIdent "record_work_ptr") (LLVMPtr typeFramePtr)
+                 }
+      -- ask the runtime to replace the pointer with an updated record which contains the argument on top
+             , llvmDiscard $
+               LLVMCall
+                 { callRef = refRecordPushReplace
+                 , callArgs =
+                     [ LLVMRef $ LLVMLocal (llvmIdent "record_work_ptr") (LLVMPtr typeFramePtr)
+                     , LLVMRef $ LLVMLocal (llvmIdent "arg") typeThunkPtr
+                     ]
+                 }
+      -- load the result in the work pointer into a final pointer for later use in the body
+             , llvmRecord "record" $
+               LLVMLoad
+                 {loadType = typeFramePtr, loadSrc = LLVMLocal (llvmIdent "record_work_ptr") (LLVMPtr typeFramePtr)}
+             ]
+        else []
     returnTheValue = llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "v") typeValuePtr
 
 instance AToLlvm (AArg, Int) (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)]) where

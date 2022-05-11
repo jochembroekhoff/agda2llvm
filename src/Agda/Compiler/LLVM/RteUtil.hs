@@ -71,6 +71,13 @@ typeFrame = LLVMTRef $ LLVMIdent "agda.struct.frame"
 typeFramePtr :: LLVMType
 typeFramePtr = LLVMPtr typeFrame
 
+refRecordPushReplace :: LLVMRef
+refRecordPushReplace =
+  LLVMGlobal
+    { refName = LLVMIdent "agda.record.push_replace"
+    , refType = LLVMFn {fnRet = LLVMVoid, fnParams = [LLVMPtr typeFramePtr, typeThunkPtr], fnVariadic = False}
+    }
+
 refRecordGet :: LLVMRef
 refRecordGet =
   LLVMGlobal

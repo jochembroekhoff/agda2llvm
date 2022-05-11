@@ -64,7 +64,10 @@ data LLVMBlock =
   deriving (Show)
 
 data LLVMInstruction
-  = LLVMBitcast
+  = LLVMAlloca
+      { allocaType :: LLVMType
+      }
+  | LLVMBitcast
       { bitcastFrom :: LLVMRef
       , bitcastTo :: LLVMType
       }
@@ -76,6 +79,10 @@ data LLVMInstruction
       { elemBase :: LLVMType
       , elemSrc :: LLVMRef
       , elemIndices :: [Int]
+      }
+  | LLVMLoad
+      { loadType :: LLVMType
+      , loadSrc :: LLVMRef
       }
   | LLVMRet
       { returnValue :: Maybe LLVMValue
