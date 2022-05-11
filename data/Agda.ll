@@ -140,7 +140,7 @@ TypeCorrect:
     %v_fn = bitcast %agda.struct.value* %v to %agda.struct.value.fn*
     %eval_info = getelementptr %agda.struct.value.fn, %agda.struct.value.fn* %v_fn, i32 0, i32 1
     ; evaluate the function
-    %eval_res = call %agda.struct.value* @agda.eval.eval(%agda.struct.eval* %eval_info, %agda.struct.thunk* null)
+    %eval_res = call %agda.struct.value* @agda.eval.eval(%agda.struct.eval* %eval_info, %agda.struct.thunk* %arg)
     ; return the evaluation result
     ret %agda.struct.value* %eval_res
 
