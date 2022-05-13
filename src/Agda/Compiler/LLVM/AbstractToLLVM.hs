@@ -1,5 +1,6 @@
 module Agda.Compiler.LLVM.AbstractToLLVM where
 
+import Agda.Compiler.Backend (__IMPOSSIBLE_VERBOSE__)
 import Agda.Compiler.LLVM.ASyntax
 import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
@@ -80,7 +81,7 @@ instance AToLlvm (AIdent, AThunk) (LLVMEntry, Maybe LLVMEntry) where
           ident
           True
           (valueCreateInstructions ++
-        -- configure non-evaluated setting
+        -- configure already-evaluated setting
            [ llvmRecord "thunk_value" $
              LLVMBitcast {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkValuePtr}
         -- copy value pointer into the thunk
@@ -144,6 +145,8 @@ instance AToLlvm (AIdent, Bool, ABody) LLVMEntry where
       -- | terminator arg signals the end of the variadic arguments
       terminatorArg = LLVMLit $ LLVMNull typeThunkPtr
       instrDoApply = [llvmRecord "v" $ LLVMCall {callRef = refApplN, callArgs = refSubj : refsArgs ++ [terminatorArg]}]
+  aToLlvm (_, _, ACase {}) = undefined
+  aToLlvm (ident, _, AError errorText) = bodyTemplate ident False []
 
 bodyTemplate :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
 bodyTemplate ident push instructions =
@@ -196,7 +199,7 @@ instance AToLlvm (AArg, Int) (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)]) w
       ])
     where
       local = "arg-" ++ show argIdx
-  aToLlvm (ARecord idx, argIdx) =
+  aToLlvm (ARecord (ARecordIdx idx), argIdx) =
     ( LLVMRef $ LLVMLocal (llvmIdent local) typeThunkPtr
     , [ llvmRecord local $
         LLVMCall
@@ -206,6 +209,7 @@ instance AToLlvm (AArg, Int) (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)]) w
       ])
     where
       local = "arg-" ++ show argIdx
+  aToLlvm (AErased, argIdx) = undefined -- TODO: implement
 
 instance AToLlvm AValue [(Maybe LLVMIdent, LLVMInstruction)] where
   aToLlvm (AValueData idx kase arity) = createData ++ populateData ++ createValue ++ populateValue

@@ -35,14 +35,26 @@ data ABody
       { applSubj :: AArg
       , applArgs :: [AArg]
       }
+  | ACase
+      { caseSubj :: ARecordIdx
+      , caseAlts :: [(AIdent, ABody)]
+      , caseFallback :: ABody
+      }
+  | AError
+      { errorText :: String
+      }
+
+newtype ARecordIdx =
+  ARecordIdx Int
 
 data AArg
   = AExt
       { extIdent :: AIdent
       }
   | ARecord
-      { recordIdx :: Int
+      { recordIdx :: ARecordIdx
       }
+  | AErased
 
 data AValue
   = AValueData

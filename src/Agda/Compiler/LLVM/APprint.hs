@@ -1,6 +1,7 @@
 module Agda.Compiler.LLVM.APprint where
 
 import Agda.Compiler.LLVM.ASyntax
+import Agda.Utils.String (quote)
 import Data.List
 
 mapLines :: (String -> String) -> String -> String
@@ -31,10 +32,21 @@ instance APretty ABody where
   aPretty (AAppl subj args) =
     unlines
       ["appl = " ++ aPretty subj ++ "()", "-- TODO: " ++ show (length args) ++ " arg(s)", "ret APPL(appl, ARGS...)"]
+  aPretty (ACase subj alts fallback) =
+    unlines
+      [ "case_scrutinee = " ++ aPretty subj
+      , "-- TODO: " ++ show (length alts) ++ " alternative(s)"
+      , "ret CASE(subj, ALTS...)"
+      ]
+  aPretty (AError text) = "ERROR " ++ quote text
+
+instance APretty ARecordIdx where
+  aPretty (ARecordIdx idx) = "R#" ++ show idx
 
 instance APretty AArg where
   aPretty (AExt extIdent) = aPretty extIdent ++ "()"
-  aPretty (ARecord idx) = "<record " ++ show idx ++ ">"
+  aPretty (ARecord idx) = "<record " ++ aPretty idx ++ ">"
+  aPretty AErased = "<erased>"
 
 instance APretty AValue where
   aPretty (AValueData idx kase arity) =

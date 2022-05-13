@@ -61,49 +61,71 @@ instance ToAbstractIntermediate QName AIdent where
 ---
 transformFunction :: QName -> TTerm -> ToAM (AIdent, [AEntry])
 transformFunction qn tt = do
-  let (appl, args) = tAppView tt
   qn' <- toA qn
-  applEntries <- transformIdentifiedAppl qn' (appl, args) False
-  return (qn', applEntries)
+  (body, otherEntries) <- toA (qn', tt)
+  let bodyEntry = AEntryThunk {entryIdent = qn', entryPrivate = False, entryThunk = AThunkDelay body}
+  return (qn', bodyEntry : otherEntries)
 
-transformIdentifiedAppl :: AIdent -> (TTerm, [TTerm]) -> Bool -> ToAM [AEntry]
-transformIdentifiedAppl qn' (appl, args) private = do
-  (applHolder, applEntries) <- toA (qn', appl)
-  args' <- traverse (toA . (qn', )) args
-  let argHolders = map fst args'
-      argEntries = concatMap snd args'
-  let bodyEntry =
-        AEntryThunk {entryIdent = qn', entryPrivate = private, entryThunk = AThunkDelay $ AAppl applHolder argHolders}
-  return (applEntries ++ argEntries ++ [bodyEntry])
-
-instance ToAbstractIntermediate (AIdent, TTerm) (AArg, [AEntry]) where
-  toA (_, TVar idx) = return (ARecord idx, [])
-  toA (_, TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
-  toA (_, TDef qn) = do
-    qn' <- toA qn
-    return (AExt qn', [])
-  toA (qn, TApp appl args) = do
+instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
+  toA (qn, TApp subj args) = do
+    (subjHolder, subjEntries) <- toArg (qn, subj)
+    args' <- traverse (toArg . (qn, )) args
+    let argHolders = map fst args'
+        argEntries = concatMap snd args'
+    return (AAppl subjHolder argHolders, subjEntries ++ argEntries)
+  toA (qn, TLam body) = do
     next <- get
     modify (1 +)
-    let name' = qn <> AIdent ("--app-" ++ show next)
-    applEntries <- transformIdentifiedAppl name' (appl, args) True
-    return (AExt name', applEntries)
-  toA (qn, TLam inner) = do
-    next <- get
-    modify (1 +)
-    let name' = qn <> AIdent ("--lam-" ++ show next)
-        name'_inner = name' <> AIdent "-inner"
-    (innerIdent, innerEntries) <- toA (qn, inner)
+    let innerName = qn <> AIdent ("--lam-" ++ show next)
+    (innerBody, innerEntries) <- toA (qn, body)
     return
-      ( AExt name'
-      , innerEntries ++
-        [ AEntryThunk
-            {entryIdent = name', entryPrivate = True, entryThunk = AThunkValue AValueFn {fnIdent = name'_inner}}
-        , AEntryDirect {entryIdent = name'_inner, entryPushArg = True, entryBody = AAppl innerIdent []}
-        ])
-  toA (_, TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
+      ( AMkValue AValueFn {fnIdent = innerName}
+      , innerEntries ++ [AEntryDirect {entryIdent = innerName, entryPushArg = True, entryBody = innerBody}])
+  toA (qn, TCase idx _ fallback alts) = do
+    (fallbackBody, fallbackEntries) <- toA (qn, fallback)
+    alts' <- traverse (toA . (qn, )) alts
+    let altMatchPairs = map fst alts'
+        altEntries = concatMap snd alts'
+    return (ACase (ARecordIdx idx) altMatchPairs fallbackBody, altEntries ++ fallbackEntries)
   toA (qn, TCoerce tt) = toA (qn, tt)
+  toA (qn, TError TUnreachable) = return (AError "unreachable", [])
+  toA (qn, TError (TMeta msg)) = return (AError ("meta: " ++ msg), [])
+  toA (qn, tt) = do
+    (arg, entries) <- toArg (qn, tt)
+    return (AAppl arg [], entries)
+
+instance ToAbstractIntermediate (AIdent, TAlt) ((AIdent, ABody), [AEntry]) where
+  toA (qn, TACon cn arity body) = do
+    cn' <- toA cn
+    -- TODO: maybe don't pass @qn@, but derived version with suffix?
+    (body', bodyEntries) <- toA (qn, body)
+    return ((cn', body'), bodyEntries)
   toA _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
+
+tmpLift :: (AIdent, TTerm) -> String -> ToAM (AArg, [AEntry])
+tmpLift info@(qn, tt) kind = do
+  next <- get
+  modify (1 +)
+  -- create the body entry 'normally'
+  (body, entries) <- toA info
+  -- construct the lifted member and return
+  let qn' = qn <> AIdent ("--" ++ kind ++ "_lift-" ++ show next)
+      entry = AEntryDirect {entryIdent = qn', entryPushArg = True, entryBody = body}
+  return (AExt qn', entry : entries)
+
+toArg :: (AIdent, TTerm) -> ToAM (AArg, [AEntry])
+toArg (_, TVar idx) = return (ARecord $ ARecordIdx idx, [])
+toArg (_, TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
+toArg (_, TDef qn) = do
+  qn' <- toA qn
+  return (AExt qn', [])
+toArg info@(qn, TApp {}) = tmpLift info "appl"
+toArg info@(qn, TLam {}) = tmpLift info "lam"
+toArg (_, TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
+toArg info@(qn, TCase {}) = tmpLift info "case"
+toArg (_, TErased) = return (AErased, [])
+toArg (qn, TCoerce tt) = toArg (qn, tt)
+toArg _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
 
 transformCtor :: AIdent -> (Int, Int, Int) -> [AEntry]
 transformCtor baseName (dataIdx, dataCase, 0) =
