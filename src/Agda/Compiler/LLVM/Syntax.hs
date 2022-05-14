@@ -91,6 +91,11 @@ data LLVMInstruction
       { storeSrc :: LLVMValue
       , storeDest :: LLVMRef
       }
+  | LLVMSwitch
+      { switchSubj :: LLVMValue
+      , switchDefault :: LLVMIdent
+      , switchBranches :: [(LLVMLit, LLVMIdent)]
+      }
   | LLVMZext
       { zextFrom :: LLVMValue
       , zextTo :: LLVMType

@@ -145,7 +145,7 @@ instance AToLlvm (AIdent, Bool, ABody) LLVMEntry where
       -- | terminator arg signals the end of the variadic arguments
       terminatorArg = LLVMLit $ LLVMNull typeThunkPtr
       instrDoApply = [llvmRecord "v" $ LLVMCall {callRef = refApplN, callArgs = refSubj : refsArgs ++ [terminatorArg]}]
-  aToLlvm (_, _, ACase {}) = undefined
+  aToLlvm (ident, push, ACase subj alts fallback) = bodyTemplate ident push []
   aToLlvm (ident, _, AError errorText) = bodyTemplate ident False []
 
 bodyTemplate :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry

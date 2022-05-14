@@ -13,20 +13,21 @@ main = not true false
 
 {-
 
-not--lam-1(record, p) =
-    RET CASE $0 {
+not--lam-1($, p) =
+    $' = PUSH $ p
+    RET CASE $'0 {
         ALT #true/0 = {
             appl = #false
             RET APPL appl
         }
         ALT #false/0 = {
-            appl = GET 0
+            appl = $''0
             RET APPL appl
         }
         ALT #perhaps/2 = {
             appl = not
-            arg0 = GET 1
-            arg1 = GET 0
+            arg0 = $''1
+            arg1 = $''0
             RET APPL appl
         }
         FALLBACK = { ERROR UNREACHABLE }
