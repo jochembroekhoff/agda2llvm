@@ -29,7 +29,7 @@ declare void @llvm.va_end(i8*)
 %agda.struct.thunk.value = type { i64, %agda.struct.value* } ; evaluated=true
 ; struct frame { struct thunk *elem; struct frame *prev; }
 %agda.struct.frame = type { %agda.struct.thunk*, %agda.struct.frame* }
-; struct data_base { size_t ID; size_t CASE; struct frame *content; }
+; struct data_base { size_t IDX; size_t CASE; struct frame *content; }
 %agda.data.base = type { i64, i64, %agda.struct.frame* }
 
 ;; Agda table reference
@@ -213,7 +213,40 @@ error:
     ret %agda.struct.value* null
 }
 
+define
+i64
+@agda.eval.case.data(%agda.struct.thunk* %subj_v_thunk)
+{
+    ; force the thunk to obtain the value
+    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %subj_v_thunk)
+
+    ; value must be data, otherwise can't extract identification. check that now
+    %v_tag_ptr = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
+    %v_tag = load i64, i64* %v_tag_ptr
+    %v_tag_correct = icmp eq i64 %v_tag, 1 ; tag=1 is data
+    br i1 %v_tag_correct, label %TypeCorrect, label %TypeIncorrect
+
+TypeCorrect:
+    ; retrieve the data holder
+    %v_data = bitcast %agda.struct.value* %v to %agda.struct.value.value*
+    %data_base_ptr = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_data, i32 0, i32 1
+    %data_base = load %agda.data.base*, %agda.data.base** %data_base_ptr
+    ; get IDX and CASE fields from the data base struct
+    %data_idx_ptr = getelementptr %agda.data.base, %agda.data.base* %data_base, i32 0, i32 0
+    %data_case_ptr = getelementptr %agda.data.base, %agda.data.base* %data_base, i32 0, i32 1
+    %data_idx = load i64, i64* %data_idx_ptr
+    %data_case = load i64, i64* %data_case_ptr
+    ; compute and return case_id
+    %case_id = add i64 %data_idx, %data_case
+    ret i64 %case_id
+
+TypeIncorrect:
+    call void (i8*, ...) @printf(i8* getelementptr ([35 x i8], [35 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
+    ret i64 0
+}
+
 @fmt = private constant [62 x i8] c"AGDA: result: %p (TAG: %zu, ID: %zu, CASE: %zu, content: %p)\0A\00"
+@str.force_is_null = private constant [19 x i8] c"AGDA: result null\0A\00"
 
 define
 %agda.struct.value*
@@ -225,6 +258,15 @@ define
     %main_thunk = call %agda.struct.thunk* %main_fn(%agda.struct.frame* null)
     ; evaluate the result of the main definition
     %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %main_thunk)
+    ; make sure value is not null before attempting to print its contents
+    %v_null = icmp eq %agda.struct.value* null, %v
+    br i1 %v_null, label %v_null, label %v_not_null
+
+v_null:
+    call void(i8*, ...) @printf(i8* getelementptr ([19 x i8], [19 x i8]* @str.force_is_null, i32 0, i32 0))
+    br label %end
+
+v_not_null:
     ; print the value pointer
     %v_value = bitcast %agda.struct.value* %v to %agda.struct.value.value*
     %v_tag_ptr = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_value, i32 0, i32 0
@@ -244,10 +286,15 @@ define
         , i64 %v_case
         , %agda.struct.frame* %v_content
         )
+    br label %end
+
+end:
     ret %agda.struct.value* %v
 }
 
 ;; Agda stack
+
+@str.record_push_replace = private constant [51 x i8] c"AGDA: record.push_replace: curr=%p elem=%p new=%p\0A\00"
 
 define
 void
@@ -265,17 +312,51 @@ void
     %curr_deref = load %agda.struct.frame*, %agda.struct.frame** %curr
     store %agda.struct.frame* %curr_deref, %agda.struct.frame** %frame_prev_ptr
 
+    ; debug print
+    call void(i8*, ...) @printf(i8* getelementptr ([51 x i8], [51 x i8]* @str.record_push_replace, i32 0, i32 0)
+        , %agda.struct.frame* %curr_deref
+        , %agda.struct.thunk* %elem
+        , %agda.struct.frame* %frame
+        )
+
     ; replace callee's pointer
     store %agda.struct.frame* %frame, %agda.struct.frame** %curr
 
     ret void
 }
 
+@str.record_get_dbg = private constant [27 x i8] c"AGDA: record.get: %p[%zu]\0A\00"
+
 define
 %agda.struct.thunk*
-@agda.record.get(%agda.struct.frame*, i64)
+@agda.record.get(%agda.struct.frame* %curr, i64 %idx)
 {
-    ; TODO: implement
-    %tmp = inttoptr i64 1 to %agda.struct.thunk*
-    ret %agda.struct.thunk* %tmp
+    ; debug print
+    call void(i8*, ...) @printf(i8* getelementptr ([27 x i8], [27 x i8]* @str.record_get_dbg, i32 0, i32 0)
+        , %agda.struct.frame* %curr
+        , i64 %idx
+        )
+    ; make sure %curr isn't null
+    %curr_null = icmp eq %agda.struct.frame* null, %curr
+    br i1 %curr_null, label %null, label %ok
+
+null:
+    ret %agda.struct.thunk* null
+
+ok:
+    ; check if %idx is already zero
+    %idx_zero = icmp eq i64 0, %idx
+    br i1 %idx_zero, label %fin, label %next
+
+next:
+    %idx_less = sub i64 %idx, 1
+    %prev_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %curr, i32 0, i32 1
+    %prev = load %agda.struct.frame*, %agda.struct.frame** %prev_ptr
+    %res = call %agda.struct.thunk* @agda.record.get(%agda.struct.frame* %prev, i64 %idx_less)
+    ret %agda.struct.thunk* %res
+
+fin:
+    %elem_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %curr, i32 0, i32 0
+    %elem = load %agda.struct.thunk*, %agda.struct.thunk** %elem_ptr
+    ret %agda.struct.thunk* %elem
 }

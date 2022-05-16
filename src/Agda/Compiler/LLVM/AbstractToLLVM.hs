@@ -17,16 +17,16 @@ instance AToLlvm AIdent LLVMIdent where
 instance AToLlvm AEntry [LLVMEntry]
   -- TODO: respect the private flag (should correspond to LLVM private modifier)
                                                                                  where
-  aToLlvm (AEntryThunk ident _ thunk) = thunkConstructor : maybeToList thunkEvaluator
+  aToLlvm (AEntryThunk ident _ thunk) = thunkConstructor : thunkEvaluator
     where
       (thunkConstructor, thunkEvaluator) = aToLlvm (ident, thunk)
-  aToLlvm (AEntryDirect ident push body) = [aToLlvm (ident, push, body)]
+  aToLlvm (AEntryDirect ident push body) = aToLlvm (ident, push, body)
   aToLlvm (AEntryMain mainRef) =
     [ LLVMFnDefn
         { fnSign = llvmMainSignature
         , body =
             [ LLVMBlock
-                "begin"
+                (llvmIdent "begin")
                 [ llvmDiscard $
                   LLVMCall
                     {callRef = refMain, callArgs = [LLVMRef $ LLVMGlobal (aToLlvm mainRef) (LLVMPtr typeFnCreator)]}
@@ -36,8 +36,8 @@ instance AToLlvm AEntry [LLVMEntry]
         }
     ]
 
-instance AToLlvm (AIdent, AThunk) (LLVMEntry, Maybe LLVMEntry) where
-  aToLlvm (ident, AThunkDelay body) = (thunkConstructor, Just thunkEvaluator)
+instance AToLlvm (AIdent, AThunk) (LLVMEntry, [LLVMEntry]) where
+  aToLlvm (ident, AThunkDelay body) = (thunkConstructor, thunkEvaluator)
     where
       bodyIdent = ident <> AIdent "--body"
       thunkEvaluator = aToLlvm (bodyIdent, False, body)
@@ -73,7 +73,7 @@ instance AToLlvm (AIdent, AThunk) (LLVMEntry, Maybe LLVMEntry) where
               , storeDest = LLVMLocal (llvmIdent "thunk_eval_record") (LLVMPtr typeFramePtr)
               }
           ]
-  aToLlvm (ident, AThunkValue value) = (thunkConstructor, Nothing)
+  aToLlvm (ident, AThunkValue value) = (thunkConstructor, [])
     where
       valueCreateInstructions = aToLlvm value
       thunkConstructor =
@@ -102,7 +102,7 @@ thunkCreatorTemplate :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -
 thunkCreatorTemplate ident isEval instructions =
   LLVMFnDefn
     { fnSign = LLVMFnSign {fnName = aToLlvm ident, fnType = typeThunkPtr, fnArgs = [(typeFramePtr, llvmIdent "record")]}
-    , body = [LLVMBlock "begin" (constructThunkHolder ++ instructions ++ [returnThunkHolder])]
+    , body = [LLVMBlock (llvmIdent "begin") (constructThunkHolder ++ instructions ++ [returnThunkHolder])]
     }
   where
     constructThunkHolder
@@ -122,10 +122,11 @@ thunkCreatorTemplate ident isEval instructions =
       ]
     returnThunkHolder = llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr
 
-instance AToLlvm (AIdent, Bool, ABody) LLVMEntry where
-  aToLlvm (ident, push, AMkValue value) = bodyTemplate ident push (aToLlvm value)
+instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
+  aToLlvm (ident, push, AMkValue value) = pure $ bodyTemplate ident push (aToLlvm value)
   -- appl(0)
   aToLlvm (ident, push, AAppl (AExt subj) []) =
+    pure $
     bodyTemplate
       ident
       push
@@ -136,7 +137,7 @@ instance AToLlvm (AIdent, Bool, ABody) LLVMEntry where
       , llvmRecord "v" $ LLVMCall {callRef = refAppl0, callArgs = [LLVMRef $ LLVMLocal (llvmIdent "appl") typeThunkPtr]}
       ]
   -- appl(n)
-  aToLlvm (ident, push, AAppl subj args) = bodyTemplate ident push (instrSubj ++ instrArgs ++ instrDoApply)
+  aToLlvm (ident, push, AAppl subj args) = pure $ bodyTemplate ident push (instrSubj ++ instrArgs ++ instrDoApply)
     where
       (refSubj, instrSubj) = aToLlvm (subj, 0 :: Int)
       args' = zipWith (curry aToLlvm) args ([1 ..] :: [Int])
@@ -145,11 +146,38 @@ instance AToLlvm (AIdent, Bool, ABody) LLVMEntry where
       -- | terminator arg signals the end of the variadic arguments
       terminatorArg = LLVMLit $ LLVMNull typeThunkPtr
       instrDoApply = [llvmRecord "v" $ LLVMCall {callRef = refApplN, callArgs = refSubj : refsArgs ++ [terminatorArg]}]
-  aToLlvm (ident, push, ACase subj alts fallback) = bodyTemplate ident push []
-  aToLlvm (ident, _, AError errorText) = bodyTemplate ident False []
+  aToLlvm (ident, push, ACase (ARecordIdx subj) alts fallback) =
+    bodyTemplateBasic ident push primaryBody branchBlocks : fallbackEntries ++ altEntries
+    where
+      (fallbackIdentifier:altIdentifiers) = map (\i -> ident <> AIdent ("--case-" ++ show i)) [0 ..]
+      fallbackEntries = aToLlvm (fallbackIdentifier, False, fallback)
+      altEntries = concat $ zipWith (\ident (_, altBody) -> aToLlvm (ident, False, altBody)) altIdentifiers alts
+      (fallbackEntry, switchEntries, branchBlocks) =
+        caseStuffTemp (zip (map fst alts) altIdentifiers) fallbackIdentifier
+      primaryBody
+          -- load the case subject ("scrutinee")
+       =
+        [ llvmRecord "case_subj_thunk" $
+          LLVMCall
+            { callRef = refRecordGet
+            , callArgs =
+                [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt (LLVMSizedInt 64) subj]
+            }
+          -- call runtime to obtain identification info (data id)
+        , llvmRecord "data_id" $
+          LLVMCall {callRef = refCaseData, callArgs = [LLVMRef $ LLVMLocal (llvmIdent "case_subj_thunk") typeThunkPtr]}
+          -- switch on the data id
+        , llvmDiscard $
+          LLVMSwitch
+            { switchSubj = LLVMRef $ LLVMLocal (llvmIdent "data_id") (LLVMSizedInt 64)
+            , switchDefault = fallbackEntry
+            , switchBranches = switchEntries
+            }
+        ]
+  aToLlvm (ident, _, AError errorText) = pure $ bodyTemplate ident False (assignNull "v" "vv")
 
-bodyTemplate :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
-bodyTemplate ident push instructions =
+bodyTemplateBasic :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> [LLVMBlock] -> LLVMEntry
+bodyTemplateBasic ident push beginInstructions blocks =
   LLVMFnDefn
     { fnSign =
         LLVMFnSign
@@ -157,7 +185,7 @@ bodyTemplate ident push instructions =
           , fnType = typeValuePtr
           , fnArgs = [(typeFramePtr, llvmIdent recordParamName), (typeThunkPtr, llvmIdent "arg")]
           }
-    , body = [LLVMBlock "begin" (pushTheArg ++ instructions ++ [returnTheValue])]
+    , body = blockBegin : blocks
     }
   where
     recordParamName =
@@ -189,7 +217,43 @@ bodyTemplate ident push instructions =
                  {loadType = typeFramePtr, loadSrc = LLVMLocal (llvmIdent "record_work_ptr") (LLVMPtr typeFramePtr)}
              ]
         else []
+    blockBegin = LLVMBlock (llvmIdent "begin") (pushTheArg ++ beginInstructions)
+
+bodyTemplate :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
+bodyTemplate ident push instructions = bodyTemplateBasic ident push (instructions ++ [returnTheValue]) []
+  where
     returnTheValue = llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "v") typeValuePtr
+
+caseStuffTemp :: [(AIdent, AIdent)] -> AIdent -> (LLVMIdent, [(LLVMLit, LLVMIdent)], [LLVMBlock])
+caseStuffTemp cases fallback = (labelDefault, cases''1, blockDefault : cases''2)
+  where
+    fnBlock :: String -> AIdent -> LLVMIdent -> LLVMBlock
+    fnBlock varSuffix ident lbl =
+      LLVMBlock
+        lbl
+        [ llvmRecord var $
+          LLVMCall
+            { callRef = LLVMGlobal {refName = aToLlvm ident, refType = typeFnEvaluator}
+            , callArgs
+            -- TODO: extract data from args and push to record
+               = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMNull typeThunkPtr]
+            }
+        , llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent var) typeValuePtr
+        ]
+      where
+        var = "v-" ++ varSuffix
+    fn :: Int -> (AIdent, AIdent) -> ((LLVMLit, LLVMIdent), LLVMBlock)
+    fn i (ctorIdent, destIdent) = ((LLVMInt (LLVMSizedInt 64) i, lbl), block) {-TODO: proper idx-}
+      where
+        lbl = llvmIdent $ "case-" ++ show i
+        block = fnBlock (show i) destIdent lbl
+    -- calculate output for the fallback case
+    labelDefault = llvmIdent "case-default"
+    blockDefault = fnBlock "default" fallback labelDefault
+    -- calculate output for the normal cases
+    cases' = zipWith fn [0 ..] cases
+    cases''1 = map fst cases'
+    cases''2 = map snd cases'
 
 instance AToLlvm (AArg, Int) (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)]) where
   aToLlvm (AExt ident, argIdx) =
@@ -212,7 +276,7 @@ instance AToLlvm (AArg, Int) (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)]) w
   aToLlvm (AErased, argIdx) = undefined -- TODO: implement
 
 instance AToLlvm AValue [(Maybe LLVMIdent, LLVMInstruction)] where
-  aToLlvm (AValueData idx kase arity) = createData ++ populateData ++ createValue ++ populateValue
+  aToLlvm (AValueData idx kase arity) = createData ++ createValue ++ populateValue
     where
       dataBaseSize = 24
       dataSize = dataBaseSize + 8 * arity
@@ -249,9 +313,6 @@ instance AToLlvm AValue [(Maybe LLVMIdent, LLVMInstruction)] where
             , storeDest = LLVMLocal (llvmIdent "data_base_content") (LLVMPtr typeFramePtr)
             }
         ]
-      populateData
-        -- TODO: only support 0-arity constructors
-       = []
       createValue = createValueTagged 1
       populateValue
         -- copy the data holder pointer into the value holder
@@ -290,7 +351,7 @@ instance AToLlvm AValue [(Maybe LLVMIdent, LLVMInstruction)] where
             {elemBase = typeValueFn, elemSrc = LLVMLocal (llvmIdent "v_fn") typeValueFnPtr, elemIndices = [0, 1, 1]}
         , llvmDiscard $
           LLVMStore
-            { storeSrc = LLVMLit $ LLVMNull typeFramePtr
+            { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
             , storeDest = LLVMLocal (llvmIdent "v_fn_record") (LLVMPtr typeFramePtr)
             }
         ]
@@ -310,4 +371,13 @@ createValueTagged tag
       { storeSrc = LLVMLit $ LLVMInt (LLVMSizedInt 64) tag
       , storeDest = LLVMLocal (llvmIdent "v_tag") (LLVMPtr $ LLVMSizedInt 64)
       }
+  ]
+
+assignNull :: String -> String -> [(Maybe LLVMIdent, LLVMInstruction)]
+assignNull dest temp =
+  [ llvmRecord temp $ LLVMAlloca typeValuePtr
+  , llvmDiscard $
+    LLVMStore
+      {storeSrc = LLVMLit $ LLVMNull typeValuePtr, storeDest = LLVMLocal (llvmIdent temp) (LLVMPtr typeValuePtr)}
+  , llvmRecord dest $ LLVMLoad {loadType = typeValuePtr, loadSrc = LLVMLocal (llvmIdent temp) (LLVMPtr typeValuePtr)}
   ]

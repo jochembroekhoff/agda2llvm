@@ -107,6 +107,13 @@ refApplN =
     , refType = LLVMFn {fnRet = typeValuePtr, fnParams = [typeThunkPtr], fnVariadic = True}
     }
 
+refCaseData :: LLVMRef
+refCaseData =
+  LLVMGlobal
+    { refName = LLVMIdent "agda.eval.case.data"
+    , refType = LLVMFn {fnRet = LLVMSizedInt 64, fnParams = [typeThunkPtr], fnVariadic = False}
+    }
+
 typeFnCreator :: LLVMType
 typeFnCreator = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeFramePtr], fnVariadic = False}
 

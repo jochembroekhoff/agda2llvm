@@ -58,7 +58,7 @@ data LLVMType
 
 data LLVMBlock =
   LLVMBlock
-    { blockLabel :: String
+    { blockLabel :: LLVMIdent
     , blockInstructions :: [(Maybe LLVMIdent, LLVMInstruction)]
     }
   deriving (Show)

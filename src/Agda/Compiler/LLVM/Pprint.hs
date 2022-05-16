@@ -6,8 +6,11 @@ import Data.List
 class LLVMPretty a where
   llvmPretty :: a -> String
 
+llvmPrettySep :: LLVMPretty a => String -> [a] -> String
+llvmPrettySep sep vs = intercalate sep $ map llvmPretty vs
+
 llvmPrettyComma :: LLVMPretty a => [a] -> String
-llvmPrettyComma xs = intercalate ", " $ map llvmPretty xs
+llvmPrettyComma = llvmPrettySep ", "
 
 instance LLVMPretty LLVMIdent where
   llvmPretty (LLVMIdent ident) = ident
@@ -45,7 +48,7 @@ instance LLVMPretty LLVMType where
   llvmPretty (LLVMTRef ident) = '%' : llvmPretty ident
 
 instance LLVMPretty LLVMBlock where
-  llvmPretty (LLVMBlock lbl instructions) = lbl ++ ":\n  " ++ instructions'
+  llvmPretty (LLVMBlock lbl instructions) = llvmPretty lbl ++ ":\n  " ++ instructions'
     where
       instructions' = intercalate "\n  " (map llvmPretty instructions)
 
@@ -65,7 +68,8 @@ instance LLVMPretty LLVMInstruction where
   llvmPretty (LLVMRet (Just v)) = "ret " ++ llvmPretty v
   llvmPretty (LLVMStore src dest) = "store " ++ llvmPretty src ++ ", " ++ llvmPretty dest
   llvmPretty (LLVMSwitch subj default_ branches) =
-    "switch " ++ llvmPretty subj ++ ", label %" ++ llvmPretty default_ ++ " [" ++ llvmPrettyComma branches ++ "]"
+    "switch " ++
+    llvmPretty subj ++ ", label %" ++ llvmPretty default_ ++ "\n  [\n    " ++ llvmPrettySep "\n    " branches ++ "\n  ]"
   llvmPretty (LLVMZext from to) = "zext " ++ llvmPretty from ++ " to " ++ llvmPretty to
 
 instance LLVMPretty (LLVMLit, LLVMIdent) where

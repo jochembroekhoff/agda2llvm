@@ -14,7 +14,7 @@
 %agda.struct.thunk.value = type { i64, %agda.struct.value* } ; evaluated=true
 ; struct frame { struct thunk *elem; struct frame *prev; }
 %agda.struct.frame = type { %agda.struct.thunk*, %agda.struct.frame* }
-; struct data_base { size_t ID; size_t CASE; struct frame *content; }
+; struct data_base { size_t IDX; size_t CASE; struct frame *content; }
 %agda.data.base = type { i64, i64, %agda.struct.frame* }
 
 ;; Agda allocators
@@ -40,6 +40,10 @@ declare
 declare
 %agda.struct.value*
 @agda.eval.appl.n(%agda.struct.thunk*, ...)
+
+declare
+i64
+@agda.eval.case.data(%agda.struct.thunk*)
 
 declare
 %agda.struct.value*
