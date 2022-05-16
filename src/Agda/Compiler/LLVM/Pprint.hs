@@ -68,8 +68,9 @@ instance LLVMPretty LLVMInstruction where
   llvmPretty (LLVMRet (Just v)) = "ret " ++ llvmPretty v
   llvmPretty (LLVMStore src dest) = "store " ++ llvmPretty src ++ ", " ++ llvmPretty dest
   llvmPretty (LLVMSwitch subj default_ branches) =
-    "switch " ++
-    llvmPretty subj ++ ", label %" ++ llvmPretty default_ ++ "\n  [\n    " ++ llvmPrettySep "\n    " branches ++ "\n  ]"
+    "switch " ++ llvmPretty subj ++ ", label %" ++ llvmPretty default_ ++ "\n  [\n    " ++ branches' ++ "\n  ]"
+    where
+      branches' = llvmPrettySep "\n    " branches
   llvmPretty (LLVMZext from to) = "zext " ++ llvmPretty from ++ " to " ++ llvmPretty to
 
 instance LLVMPretty (LLVMLit, LLVMIdent) where
