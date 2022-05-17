@@ -82,6 +82,7 @@ instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
     return
       ( AMkValue AValueFn {fnIdent = innerName}
       , innerEntries ++ [AEntryDirect {entryIdent = innerName, entryPushArg = True, entryBody = innerBody}])
+  toA (qn, TLet value body) = toA (qn, TApp (TLam body) [value])
   toA (qn, TCase idx _ fallback alts) = do
     (fallbackBody, fallbackEntries) <- toA (qn, fallback)
     alts' <- traverse (toA . (qn, )) alts
