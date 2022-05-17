@@ -2,6 +2,9 @@ module Agda.Compiler.LLVM.RteUtil where
 
 import Agda.Compiler.LLVM.Syntax
 
+i64 :: LLVMType
+i64 = LLVMSizedInt 64
+
 --- Data Base Struct ---
 typeDataBase :: LLVMType
 typeDataBase = LLVMTRef $ LLVMIdent "agda.data.base"
@@ -13,7 +16,7 @@ refAllocData :: LLVMRef
 refAllocData =
   LLVMGlobal
     { refName = LLVMIdent "agda.alloc.data"
-    , refType = LLVMFn {fnRet = typeDataBasePtr, fnParams = [LLVMSizedInt 64], fnVariadic = False}
+    , refType = LLVMFn {fnRet = typeDataBasePtr, fnParams = [i64], fnVariadic = False}
     }
 
 --- Value Struct ---
@@ -82,7 +85,7 @@ refRecordGet :: LLVMRef
 refRecordGet =
   LLVMGlobal
     { refName = LLVMIdent "agda.record.get"
-    , refType = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeFramePtr, LLVMSizedInt 64], fnVariadic = False}
+    , refType = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeFramePtr, i64], fnVariadic = False}
     }
 
 --- Misc ---
@@ -111,7 +114,7 @@ refCaseData :: LLVMRef
 refCaseData =
   LLVMGlobal
     { refName = LLVMIdent "agda.eval.case.data"
-    , refType = LLVMFn {fnRet = LLVMSizedInt 64, fnParams = [typeThunkPtr], fnVariadic = False}
+    , refType = LLVMFn {fnRet = i64, fnParams = [typeThunkPtr], fnVariadic = False}
     }
 
 typeFnCreator :: LLVMType

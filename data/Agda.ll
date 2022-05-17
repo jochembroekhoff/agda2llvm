@@ -260,9 +260,9 @@ define
     %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %main_thunk)
     ; make sure value is not null before attempting to print its contents
     %v_null = icmp eq %agda.struct.value* null, %v
-    br i1 %v_null, label %v_null, label %v_not_null
+    br i1 %v_null, label %v_is_null, label %v_not_null
 
-v_null:
+v_is_null:
     call void(i8*, ...) @printf(i8* getelementptr ([19 x i8], [19 x i8]* @str.force_is_null, i32 0, i32 0))
     br label %end
 

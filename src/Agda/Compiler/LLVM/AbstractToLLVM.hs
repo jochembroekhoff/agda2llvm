@@ -30,7 +30,7 @@ instance AToLlvm AEntry [LLVMEntry]
                 [ llvmDiscard $
                   LLVMCall
                     {callRef = refMain, callArgs = [LLVMRef $ LLVMGlobal (aToLlvm mainRef) (LLVMPtr typeFnCreator)]}
-                , llvmDiscard $ LLVMRet $ Just $ LLVMLit $ LLVMInt (LLVMSizedInt 64) 0
+                , llvmDiscard $ LLVMRet $ Just $ LLVMLit $ LLVMInt i64 0
                 ]
             ]
         }
@@ -113,11 +113,11 @@ thunkCreatorTemplate ident isEval instructions =
       , llvmRecord "thunk_flag" $
         LLVMGetElementPtr
           {elemBase = typeThunk, elemSrc = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, elemIndices = [0, 0]}
-      , llvmRecord "thunk_flag_bool" $ LLVMZext {zextFrom = LLVMLit $ LLVMBool isEval, zextTo = LLVMSizedInt 64}
+      , llvmRecord "thunk_flag_bool" $ LLVMZext {zextFrom = LLVMLit $ LLVMBool isEval, zextTo = i64}
       , llvmDiscard $
         LLVMStore
-          { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "thunk_flag_bool") (LLVMSizedInt 64)
-          , storeDest = LLVMLocal (llvmIdent "thunk_flag") (LLVMPtr $ LLVMSizedInt 64)
+          { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "thunk_flag_bool") i64
+          , storeDest = LLVMLocal (llvmIdent "thunk_flag") (LLVMPtr i64)
           }
       ]
     returnThunkHolder = llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr
@@ -160,8 +160,7 @@ instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
         [ llvmRecord "case_subj_thunk" $
           LLVMCall
             { callRef = refRecordGet
-            , callArgs =
-                [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt (LLVMSizedInt 64) subj]
+            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt i64 subj]
             }
           -- call runtime to obtain identification info (data id)
         , llvmRecord "data_id" $
@@ -169,7 +168,7 @@ instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
           -- switch on the data id
         , llvmDiscard $
           LLVMSwitch
-            { switchSubj = LLVMRef $ LLVMLocal (llvmIdent "data_id") (LLVMSizedInt 64)
+            { switchSubj = LLVMRef $ LLVMLocal (llvmIdent "data_id") i64
             , switchDefault = fallbackEntry
             , switchBranches = switchEntries
             }
@@ -243,7 +242,7 @@ caseStuffTemp cases fallback = (labelDefault, cases''1, blockDefault : cases''2)
       where
         var = "v-" ++ varSuffix
     fn :: Int -> (AIdent, AIdent) -> ((LLVMLit, LLVMIdent), LLVMBlock)
-    fn i (ctorIdent, destIdent) = ((LLVMInt (LLVMSizedInt 64) i, lbl), block) {-TODO: proper idx-}
+    fn i (ctorIdent, destIdent) = ((LLVMInt i64 i, lbl), block) {-TODO: proper idx-}
       where
         lbl = llvmIdent $ "case-" ++ show i
         block = fnBlock (show i) destIdent lbl
@@ -257,23 +256,34 @@ caseStuffTemp cases fallback = (labelDefault, cases''1, blockDefault : cases''2)
 
 instance AToLlvm (AArg, Int) (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)]) where
   aToLlvm (AExt ident, argIdx) =
-    ( LLVMRef $ LLVMLocal (llvmIdent local) typeThunkPtr
-    , [ llvmRecord local $
-        LLVMCall {callRef = LLVMGlobal (aToLlvm ident) typeFnCreator, callArgs = [LLVMLit $ LLVMNull typeFramePtr]}
-      ])
-    where
-      local = "arg-" ++ show argIdx
+    argTemplate
+      argIdx
+      \local ->
+        [ llvmRecord local $
+          LLVMCall {callRef = LLVMGlobal (aToLlvm ident) typeFnCreator, callArgs = [LLVMLit $ LLVMNull typeFramePtr]}
+        ]
   aToLlvm (ARecord (ARecordIdx idx), argIdx) =
-    ( LLVMRef $ LLVMLocal (llvmIdent local) typeThunkPtr
-    , [ llvmRecord local $
-        LLVMCall
-          { callRef = refRecordGet
-          , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt (LLVMSizedInt 64) idx]
-          }
-      ])
-    where
-      local = "arg-" ++ show argIdx
-  aToLlvm (AErased, argIdx) = undefined -- TODO: implement
+    argTemplate
+      argIdx
+      \local ->
+        [ llvmRecord local $
+          LLVMCall
+            { callRef = refRecordGet
+            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt i64 idx]
+            }
+        ]
+  aToLlvm (AErased, argIdx) =
+    argTemplate
+      argIdx
+      \local
+    -- use a dummy value. shouldn't be zero because that indicates NULL. all other values are fine.
+       -> [llvmRecord local $ LLVMIntToPtr (LLVMInt i64 1) typeThunkPtr]
+
+argTemplate ::
+     Int -> (String -> [(Maybe LLVMIdent, LLVMInstruction)]) -> (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)])
+argTemplate argIdx instructionCreator = (LLVMRef $ LLVMLocal (llvmIdent local) typeThunkPtr, instructionCreator local)
+  where
+    local = "arg-" ++ show argIdx
 
 instance AToLlvm AValue [(Maybe LLVMIdent, LLVMInstruction)] where
   aToLlvm (AValueData idx kase arity) = createData ++ createValue ++ populateValue
@@ -283,26 +293,21 @@ instance AToLlvm AValue [(Maybe LLVMIdent, LLVMInstruction)] where
       createData
         -- initialize empty data base
        =
-        [ llvmRecord "data_base" $
-          LLVMCall {callRef = refAllocData, callArgs = [LLVMLit $ LLVMInt (LLVMSizedInt 64) dataSize]}
+        [ llvmRecord "data_base" $ LLVMCall {callRef = refAllocData, callArgs = [LLVMLit $ LLVMInt i64 dataSize]}
         -- store idx
         , llvmRecord "data_base_idx" $
           LLVMGetElementPtr
             {elemBase = typeDataBase, elemSrc = LLVMLocal (llvmIdent "data_base") typeDataBasePtr, elemIndices = [0, 0]}
         , llvmDiscard $
           LLVMStore
-            { storeSrc = LLVMLit $ LLVMInt (LLVMSizedInt 64) idx
-            , storeDest = LLVMLocal (llvmIdent "data_base_idx") (LLVMPtr $ LLVMSizedInt 64)
-            }
+            {storeSrc = LLVMLit $ LLVMInt i64 idx, storeDest = LLVMLocal (llvmIdent "data_base_idx") (LLVMPtr i64)}
         -- store case
         , llvmRecord "data_base_case" $
           LLVMGetElementPtr
             {elemBase = typeDataBase, elemSrc = LLVMLocal (llvmIdent "data_base") typeDataBasePtr, elemIndices = [0, 1]}
         , llvmDiscard $
           LLVMStore
-            { storeSrc = LLVMLit $ LLVMInt (LLVMSizedInt 64) kase
-            , storeDest = LLVMLocal (llvmIdent "data_base_case") (LLVMPtr $ LLVMSizedInt 64)
-            }
+            {storeSrc = LLVMLit $ LLVMInt i64 kase, storeDest = LLVMLocal (llvmIdent "data_base_case") (LLVMPtr i64)}
         -- store content (= current record)
         , llvmRecord "data_base_content" $
           LLVMGetElementPtr
@@ -367,10 +372,7 @@ createValueTagged tag
   , llvmRecord "v_tag" $
     LLVMGetElementPtr {elemBase = typeValue, elemSrc = LLVMLocal (llvmIdent "v") typeValuePtr, elemIndices = [0, 0]}
   , llvmDiscard $
-    LLVMStore
-      { storeSrc = LLVMLit $ LLVMInt (LLVMSizedInt 64) tag
-      , storeDest = LLVMLocal (llvmIdent "v_tag") (LLVMPtr $ LLVMSizedInt 64)
-      }
+    LLVMStore {storeSrc = LLVMLit $ LLVMInt i64 tag, storeDest = LLVMLocal (llvmIdent "v_tag") (LLVMPtr i64)}
   ]
 
 assignNull :: String -> String -> [(Maybe LLVMIdent, LLVMInstruction)]

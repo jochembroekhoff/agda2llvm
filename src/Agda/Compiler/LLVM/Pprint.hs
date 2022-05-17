@@ -63,6 +63,7 @@ instance LLVMPretty LLVMInstruction where
   llvmPretty (LLVMGetElementPtr t ref indices) = "getelementptr " ++ llvmPretty t ++ ", " ++ llvmPretty ref ++ indices'
     where
       indices' = concatMap (\i -> ", i32 " ++ show i) indices
+  llvmPretty (LLVMIntToPtr value tPtr) = "inttoptr " ++ llvmPretty value ++ " to " ++ llvmPretty tPtr
   llvmPretty (LLVMLoad t src) = "load " ++ llvmPretty t ++ ", " ++ llvmPretty src
   llvmPretty (LLVMRet Nothing) = "ret void"
   llvmPretty (LLVMRet (Just v)) = "ret " ++ llvmPretty v

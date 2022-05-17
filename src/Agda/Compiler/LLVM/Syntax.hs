@@ -80,6 +80,10 @@ data LLVMInstruction
       , elemSrc :: LLVMRef
       , elemIndices :: [Int]
       }
+  | LLVMIntToPtr
+      { ptrValue :: LLVMLit
+      , ptrType :: LLVMType
+      }
   | LLVMLoad
       { loadType :: LLVMType
       , loadSrc :: LLVMRef
