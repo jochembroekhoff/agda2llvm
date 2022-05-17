@@ -36,6 +36,7 @@ library
       Agda.Compiler.LLVM.RteUtil
       Agda.Compiler.LLVM.Syntax
       Agda.Compiler.LLVM.SyntaxUtil
+      Agda.Compiler.LLVM.Tables
       Agda.Compiler.LLVM.ToAbstractIntermediate
       Agda.Compiler.LLVM.Wiring
   other-modules:
@@ -54,12 +55,15 @@ library
   build-depends:
       Agda >=2.6.2.1 && <2.6.3
     , base >=4.7 && <5
+    , bytestring
     , containers
+    , crc >=0.1.1.1
     , deepseq >=1.4.5
     , directory
     , filepath >=1.4 && <2
     , ghc
     , mtl >=2.2.2 && <3
+    , utf8-string
   default-language: Haskell2010
 
 executable agda2llvm-exe
@@ -82,12 +86,15 @@ executable agda2llvm-exe
       Agda >=2.6.2.1 && <2.6.3
     , agda2llvm
     , base >=4.7 && <5
+    , bytestring
     , containers
+    , crc >=0.1.1.1
     , deepseq >=1.4.5
     , directory
     , filepath >=1.4 && <2
     , ghc
     , mtl >=2.2.2 && <3
+    , utf8-string
   default-language: Haskell2010
 
 test-suite agda2llvm-test
@@ -111,10 +118,13 @@ test-suite agda2llvm-test
       Agda >=2.6.2.1 && <2.6.3
     , agda2llvm
     , base >=4.7 && <5
+    , bytestring
     , containers
+    , crc >=0.1.1.1
     , deepseq >=1.4.5
     , directory
     , filepath >=1.4 && <2
     , ghc
     , mtl >=2.2.2 && <3
+    , utf8-string
   default-language: Haskell2010

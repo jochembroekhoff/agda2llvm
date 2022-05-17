@@ -6,6 +6,7 @@ import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
 import Agda.Compiler.LLVM.SyntaxUtil (llvmDiscard, llvmIdent, llvmRecord)
+import Agda.Compiler.LLVM.Tables (computeCtorIdent)
 import Agda.Compiler.Treeless.NormalizeNames (normalizeNames)
 import Agda.Syntax.Common (LensModality(getModality), usableModality)
 import Agda.Syntax.Internal (ConHead(conName))
@@ -50,7 +51,7 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
       Record {} -> return Nothing
       Constructor {conSrcCon = chead, conArity = nargs} -> do
         name <- toA $ conName chead
-        let entries = transformCtor name (123, 456, nargs)
+        let entries = transformCtor name nargs
         return $ Just (name, entries)
       AbstractDefn {} -> __IMPOSSIBLE__
       DataOrRecSig {} -> __IMPOSSIBLE__
@@ -110,7 +111,7 @@ tmpLift info@(qn, tt) kind = do
   (body, entries) <- toA info
   -- construct the lifted member and return
   let qn' = qn <> AIdent ("--" ++ kind ++ "_lift-" ++ show next)
-      entry = AEntryDirect {entryIdent = qn', entryPushArg = True, entryBody = body}
+      entry = AEntryThunk {entryIdent = qn', entryPrivate = True, entryThunk = AThunkDelay body}
   return (AExt qn', entry : entries)
 
 toArg :: (AIdent, TTerm) -> ToAM (AArg, [AEntry])
@@ -127,16 +128,19 @@ toArg (_, TErased) = return (AErased, [])
 toArg (qn, TCoerce tt) = toArg (qn, tt)
 toArg _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
 
-transformCtor :: AIdent -> (Int, Int, Int) -> [AEntry]
-transformCtor baseName (dataIdx, dataCase, 0) =
+transformCtor :: AIdent -> Int -> [AEntry]
+transformCtor baseName 0 =
   [ AEntryThunk
       { entryIdent = baseName
       , entryPrivate = False
       , entryThunk = AThunkDelay $ AMkValue AValueData {dataIdx = dataIdx, dataCase = dataCase, dataArity = 0}
       }
   ]
-transformCtor baseName (dataIdx, dataCase, n) = go n
   where
+    (dataIdx, dataCase) = computeCtorIdent baseName
+transformCtor baseName n = go n
+  where
+    (dataIdx, dataCase) = computeCtorIdent baseName
     levelIdent 0 = baseName
     levelIdent m = baseName <> AIdent ('-' : show m)
     go lvl

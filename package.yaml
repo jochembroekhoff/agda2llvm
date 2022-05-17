@@ -28,6 +28,9 @@ dependencies:
 - containers
 - directory
 - mtl >= 2.2.2 && < 3
+- utf8-string
+- bytestring
+- crc >= 0.1.1.1
 
 data-dir: data
 data-files:

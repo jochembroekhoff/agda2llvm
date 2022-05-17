@@ -2,3 +2,6 @@ resolver: lts-19.4
 
 packages:
 - .
+
+extra-deps:
+- crc-0.1.1.1@sha256:e3f496fa0c1483c936971b2e67221d36421329511b6f6278fde30b918fa69e14,1938

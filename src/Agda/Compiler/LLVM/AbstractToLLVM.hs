@@ -5,6 +5,7 @@ import Agda.Compiler.LLVM.ASyntax
 import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
 import Agda.Compiler.LLVM.SyntaxUtil
+import Agda.Compiler.LLVM.Tables
 import Agda.Utils.Maybe (maybeToList)
 
 class AToLlvm a b where
@@ -242,8 +243,9 @@ caseStuffTemp cases fallback = (labelDefault, cases''1, blockDefault : cases''2)
       where
         var = "v-" ++ varSuffix
     fn :: Int -> (AIdent, AIdent) -> ((LLVMLit, LLVMIdent), LLVMBlock)
-    fn i (ctorIdent, destIdent) = ((LLVMInt i64 i, lbl), block) {-TODO: proper idx-}
+    fn i (ctorIdent, destIdent) = ((LLVMInt i64 dataId, lbl), block)
       where
+        dataId = uncurry (+) $ computeCtorIdent ctorIdent
         lbl = llvmIdent $ "case-" ++ show i
         block = fnBlock (show i) destIdent lbl
     -- calculate output for the fallback case

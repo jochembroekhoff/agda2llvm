@@ -326,6 +326,7 @@ void
 }
 
 @str.record_get_dbg = private constant [27 x i8] c"AGDA: record.get: %p[%zu]\0A\00"
+@str.record_get_dbg_fin = private constant [26 x i8] c"AGDA: record.get: res=%p\0A\00"
 
 define
 %agda.struct.thunk*
@@ -358,5 +359,9 @@ next:
 fin:
     %elem_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %curr, i32 0, i32 0
     %elem = load %agda.struct.thunk*, %agda.struct.thunk** %elem_ptr
+    ; debug print
+    call void(i8*, ...) @printf(i8* getelementptr ([26 x i8], [26 x i8]* @str.record_get_dbg_fin, i32 0, i32 0)
+        , %agda.struct.thunk* %elem
+        )
     ret %agda.struct.thunk* %elem
 }
