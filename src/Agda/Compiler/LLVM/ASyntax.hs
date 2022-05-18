@@ -1,5 +1,7 @@
 module Agda.Compiler.LLVM.ASyntax where
 
+import Agda.Syntax.Literal (Literal)
+
 data AIdent
   = AIdent String
   | AIdentRaw String
@@ -65,6 +67,7 @@ data AValue
   | AValueFn
       { fnIdent :: AIdent
       }
+  | AValueLit Literal
 
 ---
 instance Semigroup AIdent where

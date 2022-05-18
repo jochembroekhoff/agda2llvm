@@ -2,8 +2,14 @@ module Agda.Compiler.LLVM.RteUtil where
 
 import Agda.Compiler.LLVM.Syntax
 
+i8 :: LLVMType
+i8 = LLVMSizedInt 8
+
 i64 :: LLVMType
 i64 = LLVMSizedInt 64
+
+i8Ptr :: LLVMType
+i8Ptr = LLVMPtr i8
 
 --- Data Base Struct ---
 typeDataBase :: LLVMType
@@ -20,6 +26,9 @@ refAllocData =
     }
 
 --- Value Struct ---
+typeValueCommon :: String -> LLVMType
+typeValueCommon v = LLVMTRef $ LLVMIdent $ "agda.struct.value." ++ v
+
 typeValue :: LLVMType
 typeValue = LLVMTRef $ LLVMIdent "agda.struct.value"
 
@@ -27,13 +36,13 @@ typeValuePtr :: LLVMType
 typeValuePtr = LLVMPtr typeValue
 
 typeValueData :: LLVMType
-typeValueData = LLVMTRef $ LLVMIdent "agda.struct.value.data"
+typeValueData = typeValueCommon "data"
 
 typeValueDataPtr :: LLVMType
 typeValueDataPtr = LLVMPtr typeValueData
 
 typeValueFn :: LLVMType
-typeValueFn = LLVMTRef $ LLVMIdent "agda.struct.value.fn"
+typeValueFn = typeValueCommon "fn"
 
 typeValueFnPtr :: LLVMType
 typeValueFnPtr = LLVMPtr typeValueFn

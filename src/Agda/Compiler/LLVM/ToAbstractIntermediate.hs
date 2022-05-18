@@ -68,6 +68,7 @@ transformFunction qn tt = do
   return (qn', bodyEntry : otherEntries)
 
 instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
+  toA (_, TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
   toA (qn, TApp subj args) = do
     (subjHolder, subjEntries) <- toArg (qn, subj)
     args' <- traverse (toArg . (qn, )) args
@@ -82,6 +83,7 @@ instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
     return
       ( AMkValue AValueFn {fnIdent = innerName}
       , innerEntries ++ [AEntryDirect {entryIdent = innerName, entryPushArg = True, entryBody = innerBody}])
+  toA (_, TLit lit) = return (AMkValue $ AValueLit lit, [])
   toA (qn, TLet value body) = toA (qn, TApp (TLam body) [value])
   toA (qn, TCase idx _ fallback alts) = do
     (fallbackBody, fallbackEntries) <- toA (qn, fallback)
@@ -117,12 +119,12 @@ tmpLift info@(qn, tt) kind = do
 
 toArg :: (AIdent, TTerm) -> ToAM (AArg, [AEntry])
 toArg (_, TVar idx) = return (ARecord $ ARecordIdx idx, [])
-toArg (_, TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
 toArg (_, TDef qn) = do
   qn' <- toA qn
   return (AExt qn', [])
 toArg info@(qn, TApp {}) = tmpLift info "appl"
 toArg info@(qn, TLam {}) = tmpLift info "lam"
+toArg info@(qn, TLit {}) = tmpLift info "lit"
 toArg (_, TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
 toArg info@(qn, TCase {}) = tmpLift info "case"
 toArg (_, TErased) = return (AErased, [])

@@ -41,6 +41,7 @@ instance LLVMPretty LLVMType where
        else "") ++
     ")"
   llvmPretty (LLVMSizedInt sz) = 'i' : show sz
+  llvmPretty LLVMDouble = "double"
   llvmPretty (LLVMPtr t) = llvmPretty t ++ "*"
   llvmPretty (LLVMArray n t) = "[" ++ show n ++ " x " ++ llvmPretty t ++ "]"
   llvmPretty (LLVMStruct False fields) = "{ " ++ llvmPrettyComma fields ++ " }"
@@ -88,5 +89,6 @@ instance LLVMPretty LLVMRef where
 instance LLVMPretty LLVMLit where
   llvmPretty (LLVMBool False) = "i1 false"
   llvmPretty (LLVMBool True) = "i1 true"
+  llvmPretty (LLVMDoubleV v) = "double " ++ show v
   llvmPretty (LLVMInt t v) = llvmPretty t ++ " " ++ show v
   llvmPretty (LLVMNull t) = llvmPretty t ++ " null"

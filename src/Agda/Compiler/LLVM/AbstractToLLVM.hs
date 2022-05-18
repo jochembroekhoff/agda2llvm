@@ -3,11 +3,13 @@ module Agda.Compiler.LLVM.AbstractToLLVM where
 import Agda.Compiler.Backend (__IMPOSSIBLE_VERBOSE__)
 import Agda.Compiler.LLVM.ASyntax
 import Agda.Compiler.LLVM.RteUtil
-import Agda.Compiler.LLVM.Syntax
+import Agda.Compiler.LLVM.Syntax hiding (litType)
 import Agda.Compiler.LLVM.SyntaxUtil
 import Agda.Compiler.LLVM.Tables
+import Agda.Syntax.Literal (Literal(..))
 import Agda.Utils.Maybe (maybeToList)
 import Agda.Utils.Tuple
+import Data.Char (ord)
 
 class AToLlvm a b where
   aToLlvm :: a -> b
@@ -383,6 +385,25 @@ instance AToLlvm AValue [(Maybe LLVMIdent, LLVMInstruction)] where
             , storeDest = LLVMLocal (llvmIdent "v_fn_record") (LLVMPtr typeFramePtr)
             }
         ]
+  aToLlvm (AValueLit lit) = createValue ++ populateValue
+    where
+      createValue = createValueTagged (litTag lit)
+      populateValue
+          -- cast to required form
+       =
+        [ llvmRecord "v_lit" $
+          LLVMBitcast {bitcastFrom = LLVMLocal (llvmIdent "v") typeValuePtr, bitcastTo = tyStructPtr}
+          -- get pointer to literal value
+        , llvmRecord "lit" $
+          LLVMGetElementPtr
+            {elemBase = tyStruct, elemSrc = LLVMLocal (llvmIdent "v_lit") tyStructPtr, elemIndices = [0, 1]}
+          -- store the actual value
+        , llvmDiscard $ LLVMStore {storeSrc = LLVMLit litV, storeDest = LLVMLocal (llvmIdent "lit") (LLVMPtr tyValue)}
+        ]
+        where
+          (tyStruct, tyValue) = litType lit
+          tyStructPtr = LLVMPtr tyStruct
+          litV = litLit lit
 
 -- | Create some instructions that populate @%v@ with a fresh value struct.
 --   The given tag value is stored, the other fields are left uninitialized.
@@ -397,6 +418,30 @@ createValueTagged tag
   , llvmDiscard $
     LLVMStore {storeSrc = LLVMLit $ LLVMInt i64 tag, storeDest = LLVMLocal (llvmIdent "v_tag") (LLVMPtr i64)}
   ]
+
+litTag :: Literal -> Int
+litTag LitNat {} = 2
+litTag LitWord64 {} = 3
+litTag LitFloat {} = 4
+litTag LitString {} = 5
+litTag LitChar {} = 6
+litTag _ = undefined
+
+litType :: Literal -> (LLVMType, LLVMType)
+litType LitNat {} = (typeValueCommon "lit_nat", i64)
+litType LitWord64 {} = (typeValueCommon "lit_w64", i64)
+litType LitFloat {} = (typeValueCommon "lit_f64", LLVMDouble)
+litType LitString {} = (typeValueCommon "lit_str", i8Ptr)
+litType LitChar {} = (typeValueCommon "lit_chr", i8)
+litType _ = undefined
+
+litLit :: Literal -> LLVMLit
+litLit (LitNat v) = LLVMInt i64 (fromIntegral v)
+litLit (LitWord64 v) = LLVMInt i64 (fromIntegral v)
+litLit (LitFloat v) = LLVMDoubleV v
+litLit (LitString v) = undefined -- TODO
+litLit (LitChar v) = LLVMInt i8 (ord v)
+litLit _ = undefined
 
 assignNull :: String -> String -> [(Maybe LLVMIdent, LLVMInstruction)]
 assignNull dest temp =

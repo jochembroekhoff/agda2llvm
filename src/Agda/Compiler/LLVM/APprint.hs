@@ -1,6 +1,7 @@
 module Agda.Compiler.LLVM.APprint where
 
 import Agda.Compiler.LLVM.ASyntax
+import Agda.Utils.Pretty (prettyShow)
 import Agda.Utils.String (quote)
 import Data.List
 
@@ -52,3 +53,4 @@ instance APretty AValue where
   aPretty (AValueData idx kase arity) =
     "VALUE.data{" ++ show idx ++ "," ++ show kase ++ ";todo_args=" ++ show arity ++ "}"
   aPretty (AValueFn fnIdent) = "VALUE.fn{" ++ aPretty fnIdent ++ "}"
+  aPretty (AValueLit lit) = "VALUE.lit{" ++ prettyShow lit ++ "}"

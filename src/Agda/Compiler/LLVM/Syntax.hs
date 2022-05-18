@@ -40,6 +40,7 @@ data LLVMType
   | LLVMSizedInt
       { size :: Int
       }
+  | LLVMDouble
   | LLVMPtr
       { ptrOf :: LLVMType
       }
@@ -129,6 +130,9 @@ data LLVMRef
 data LLVMLit
   = LLVMBool
       { boolValue :: Bool
+      }
+  | LLVMDoubleV
+      { doubleValue :: Double
       }
   | LLVMInt
       { litType :: LLVMType

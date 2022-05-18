@@ -8,6 +8,7 @@ declare i8* @GC_malloc(i64)
 declare i8* @malloc(i64)
 declare void @free(i8*)
 declare void @printf(i8*, ...)
+declare void @putchar(i64)
 
 ;; LLVM
 
@@ -44,11 +45,13 @@ declare void @llvm.va_end(i8*)
 
 ;; Agda allocators
 
+@agda_alloc_managed = alias i8*(i64), i8*(i64)* @GC_malloc
+
 define
 %agda.struct.value*
 @agda.alloc.value()
 {
-    %ptr = call i8* @GC_malloc(i64 24)
+    %ptr = call i8* @agda_alloc_managed(i64 24)
     %ptr_ = bitcast i8* %ptr to %agda.struct.value*
     ret %agda.struct.value* %ptr_
 }
@@ -57,7 +60,7 @@ define
 %agda.struct.thunk*
 @agda.alloc.thunk()
 {
-    %ptr = call i8* @GC_malloc(i64 24)
+    %ptr = call i8* @agda_alloc_managed(i64 24)
     %ptr_ = bitcast i8* %ptr to %agda.struct.thunk*
     ret %agda.struct.thunk* %ptr_
 }
@@ -66,7 +69,7 @@ define
 %agda.data.base*
 @agda.alloc.data(i64 %sz)
 {
-    %ptr = call i8* @GC_malloc(i64 %sz)
+    %ptr = call i8* @agda_alloc_managed(i64 %sz)
     %ptr_ = bitcast i8* %ptr to %agda.data.base*
     ret %agda.data.base* %ptr_
 }
@@ -250,8 +253,8 @@ TypeIncorrect:
     ret i64 0
 }
 
-@fmt = private constant [62 x i8] c"AGDA: result: %p (TAG: %zu, ID: %zu, CASE: %zu, content: %p)\0A\00"
 @str.force_is_null = private constant [19 x i8] c"AGDA: result null\0A\00"
+@str.main_res_pfx = private constant [15 x i8] c"AGDA: result: \00"
 
 define
 %agda.struct.value*
@@ -272,25 +275,10 @@ v_is_null:
     br label %end
 
 v_not_null:
-    ; print the value pointer
-    %v_value = bitcast %agda.struct.value* %v to %agda.struct.value.data*
-    %v_tag_ptr = getelementptr %agda.struct.value.data, %agda.struct.value.data* %v_value, i32 0, i32 0
-    %v_tag = load i64, i64* %v_tag_ptr
-    %v_base_ptr_ptr = getelementptr %agda.struct.value.data, %agda.struct.value.data* %v_value, i32 0, i32 1
-    %v_base_ptr = load %agda.data.base*, %agda.data.base** %v_base_ptr_ptr
-    %v_id_ptr = getelementptr %agda.data.base, %agda.data.base* %v_base_ptr, i32 0, i32 0
-    %v_id = load i64, i64* %v_id_ptr
-    %v_case_ptr = getelementptr %agda.data.base, %agda.data.base* %v_base_ptr, i32 0, i32 1
-    %v_case = load i64, i64* %v_case_ptr
-    %v_content_ptr = getelementptr %agda.data.base, %agda.data.base* %v_base_ptr, i32 0, i32 2
-    %v_content = load %agda.struct.frame*, %agda.struct.frame** %v_content_ptr
-    call void(i8*, ...) @printf(i8* getelementptr ([62 x i8], [62 x i8]* @fmt, i32 0, i32 0)
-        , %agda.struct.value* %v
-        , i64 %v_tag
-        , i64 %v_id
-        , i64 %v_case
-        , %agda.struct.frame* %v_content
-        )
+    ; debug-print the value contents
+    call void(i8*, ...) @printf(i8* getelementptr ([15 x i8], [15 x i8]* @str.main_res_pfx, i32 0, i32 0))
+    call void @agda.debug.print.value(%agda.struct.value* %v)
+    call void @putchar(i64 10) ; '\n'
     br label %end
 
 end:
@@ -368,7 +356,7 @@ internal
 %agda.struct.frame*
 @agda.record.internal.alloc(%agda.struct.thunk* %elem, %agda.struct.frame* %prev)
 {
-    %alloc = call i8* @GC_malloc(i64 16)
+    %alloc = call i8* @agda_alloc_managed(i64 16)
     %frame = bitcast i8* %alloc to %agda.struct.frame*
 
     ; set frame->elem
@@ -438,4 +426,83 @@ TypeCorrect:
 TypeIncorrect:
     call void (i8*, ...) @printf(i8* getelementptr ([35 x i8], [35 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
     ret %agda.struct.frame* null
+}
+
+;; Debugging
+
+@str.fn = private constant [3 x i8] c"fn\00"
+@str.fmt.zd = private constant [4 x i8] c"%zd\00"
+@str.fmt.zu = private constant [4 x i8] c"%zu\00"
+@str.fmt.data = private constant [29 x i8] c"(id=%zu case=%zu content=%p)\00"
+
+define
+void
+@agda.debug.print.value(%agda.struct.value* %v)
+{
+    ; load and switch on tag value
+    %v_tag_ptr = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
+    %v_tag = load i64, i64* %v_tag_ptr
+
+    switch i64 %v_tag, label %case_unk
+    [
+        i64 0, label %case_fn
+        i64 1, label %case_data
+        i64 2, label %case_lit_nat
+        i64 3, label %case_lit_w64
+        ; TODO-cases:
+        ;i64 4, label %case_lit_f64
+        ;i64 5, label %case_lit_str
+        ;i64 6, label %case_lit_chr
+    ]
+
+case_unk:
+    call void @putchar(i64 63) ; '?'
+    ret void
+
+case_fn:
+    call void (i8*, ...) @printf(i8* getelementptr ([3 x i8], [3 x i8]* @str.fn, i32 0, i32 0))
+    ret void
+
+case_data:
+    %v_data = bitcast %agda.struct.value* %v to %agda.struct.value.data*
+    %v_content_data_ptr = getelementptr %agda.struct.value.data, %agda.struct.value.data* %v_data, i32 0, i32 1
+    %v_content_data = load %agda.data.base*, %agda.data.base** %v_content_data_ptr
+    call void @agda.debug.print.data(%agda.data.base* %v_content_data)
+    ret void
+
+case_lit_nat:
+    %v_lit_nat = bitcast %agda.struct.value* %v to %agda.struct.value.lit_nat*
+    %v_content_nat_ptr = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_lit_nat, i32 0, i32 1
+    %v_content_nat = load i64, i64* %v_content_nat_ptr
+    call void (i8*, ...) @printf(i8* getelementptr ([4 x i8], [4 x i8]* @str.fmt.zd, i32 0, i32 0)
+    , i64 %v_content_nat
+    )
+    ret void
+
+case_lit_w64:
+    %v_lit_w64 = bitcast %agda.struct.value* %v to %agda.struct.value.lit_w64*
+    %v_content_w64_ptr = getelementptr %agda.struct.value.lit_w64, %agda.struct.value.lit_w64* %v_lit_w64, i32 0, i32 1
+    %v_content_w64 = load i64, i64* %v_content_w64_ptr
+    call void (i8*, ...) @printf(i8* getelementptr ([4 x i8], [4 x i8]* @str.fmt.zu, i32 0, i32 0)
+    , i64 %v_content_nat
+    )
+    ret void
+}
+
+define
+void
+@agda.debug.print.data(%agda.data.base* %data)
+{
+    %id_ptr = getelementptr %agda.data.base, %agda.data.base* %data, i32 0, i32 0
+    %id = load i64, i64* %id_ptr
+    %case_ptr = getelementptr %agda.data.base, %agda.data.base* %data, i32 0, i32 1
+    %case = load i64, i64* %case_ptr
+    %content_ptr = getelementptr %agda.data.base, %agda.data.base* %data, i32 0, i32 2
+    %content = load %agda.struct.frame*, %agda.struct.frame** %content_ptr
+    call void(i8*, ...) @printf(i8* getelementptr ([29 x i8], [29 x i8]* @str.fmt.data, i32 0, i32 0)
+        , i64 %id
+        , i64 %case
+        , %agda.struct.frame* %content
+        )
+    ret void
 }
