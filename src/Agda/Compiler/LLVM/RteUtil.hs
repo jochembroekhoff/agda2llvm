@@ -27,7 +27,7 @@ typeValuePtr :: LLVMType
 typeValuePtr = LLVMPtr typeValue
 
 typeValueData :: LLVMType
-typeValueData = LLVMTRef $ LLVMIdent "agda.struct.value.value"
+typeValueData = LLVMTRef $ LLVMIdent "agda.struct.value.data"
 
 typeValueDataPtr :: LLVMType
 typeValueDataPtr = LLVMPtr typeValueData

@@ -7,7 +7,7 @@
 ; struct value { enum {value_fn,value_data} type; union {struct eval fn; void *value;} }
 %agda.struct.value = type { i64, [2 x i64] }
 %agda.struct.value.fn = type { i64, %agda.struct.eval } ; tag=0
-%agda.struct.value.value = type { i64, %agda.data.base* } ; tag=1
+%agda.struct.value.data = type { i64, %agda.data.base* } ; tag=1
 ; struct thunk { bool evaluated; union { struct eval eval; struct value *value; } }
 %agda.struct.thunk = type { i64, [16 x i8] }
 %agda.struct.thunk.eval = type { i64, %agda.struct.eval } ; evaluated=false

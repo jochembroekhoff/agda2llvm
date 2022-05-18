@@ -22,7 +22,7 @@ declare void @llvm.va_end(i8*)
 ; struct value { enum {value_fn,value_data} type; union {struct eval fn; void *value;} }
 %agda.struct.value = type { i64, [2 x i64] }
 %agda.struct.value.fn = type { i64, %agda.struct.eval } ; tag=0
-%agda.struct.value.value = type { i64, %agda.data.base* } ; tag=1
+%agda.struct.value.data = type { i64, %agda.data.base* } ; tag=1
 ; struct thunk { bool evaluated; union { struct eval eval; struct value *value; } }
 %agda.struct.thunk = type { i64, [16 x i8] }
 %agda.struct.thunk.eval = type { i64, %agda.struct.eval } ; evaluated=false
@@ -228,8 +228,8 @@ i64
 
 TypeCorrect:
     ; retrieve the data holder
-    %v_data = bitcast %agda.struct.value* %v to %agda.struct.value.value*
-    %data_base_ptr = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_data, i32 0, i32 1
+    %v_data = bitcast %agda.struct.value* %v to %agda.struct.value.data*
+    %data_base_ptr = getelementptr %agda.struct.value.data, %agda.struct.value.data* %v_data, i32 0, i32 1
     %data_base = load %agda.data.base*, %agda.data.base** %data_base_ptr
     ; get IDX and CASE fields from the data base struct
     %data_idx_ptr = getelementptr %agda.data.base, %agda.data.base* %data_base, i32 0, i32 0
@@ -268,10 +268,10 @@ v_is_null:
 
 v_not_null:
     ; print the value pointer
-    %v_value = bitcast %agda.struct.value* %v to %agda.struct.value.value*
-    %v_tag_ptr = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_value, i32 0, i32 0
+    %v_value = bitcast %agda.struct.value* %v to %agda.struct.value.data*
+    %v_tag_ptr = getelementptr %agda.struct.value.data, %agda.struct.value.data* %v_value, i32 0, i32 0
     %v_tag = load i64, i64* %v_tag_ptr
-    %v_base_ptr_ptr = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_value, i32 0, i32 1
+    %v_base_ptr_ptr = getelementptr %agda.struct.value.data, %agda.struct.value.data* %v_value, i32 0, i32 1
     %v_base_ptr = load %agda.data.base*, %agda.data.base** %v_base_ptr_ptr
     %v_id_ptr = getelementptr %agda.data.base, %agda.data.base* %v_base_ptr, i32 0, i32 0
     %v_id = load i64, i64* %v_id_ptr
@@ -420,8 +420,8 @@ define
 
 TypeCorrect:
     ; retrieve the data holder
-    %v_data = bitcast %agda.struct.value* %v to %agda.struct.value.value*
-    %data_base_ptr = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_data, i32 0, i32 1
+    %v_data = bitcast %agda.struct.value* %v to %agda.struct.value.data*
+    %data_base_ptr = getelementptr %agda.struct.value.data, %agda.struct.value.data* %v_data, i32 0, i32 1
     %data_base = load %agda.data.base*, %agda.data.base** %data_base_ptr
     ; get DATA field from the data base struct
     %data_record_ptr = getelementptr %agda.data.base, %agda.data.base* %data_base, i32 0, i32 2

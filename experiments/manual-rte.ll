@@ -14,7 +14,7 @@
 ; struct value { enum {value_fn,value_data} type; union {struct eval fn; void *value;} }
 %agda.struct.value = type { i64, [2 x i64] }
 %agda.struct.value.fn = type { i64, %agda.struct.eval } ; tag=0
-%agda.struct.value.value = type { i64, %agda.data.base* } ; tag=1
+%agda.struct.value.data = type { i64, %agda.data.base* } ; tag=1
 ; struct thunk { bool evaluated; union { struct eval eval; struct value *value; } }
 %agda.struct.thunk = type { i64, [16 x i8] }
 %agda.struct.thunk.eval = type { i64, %agda.struct.eval } ; evaluated=false
@@ -75,8 +75,8 @@ define
     ; configure value holder
     %v_tag = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
     store i64 1, i64* %v_tag ; tag=1 is value
-    %v_data = bitcast %agda.struct.value* %v to %agda.struct.value.value*
-    %v_data_data = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_data, i32 0, i32 1
+    %v_data = bitcast %agda.struct.value* %v to %agda.struct.value.data*
+    %v_data_data = getelementptr %agda.struct.value.data, %agda.struct.value.data* %v_data, i32 0, i32 1
     store %agda.data.base* %data_base, %agda.data.base** %v_data_data
 
     ; return the produced value
