@@ -23,6 +23,11 @@ declare void @llvm.va_end(i8*)
 %agda.struct.value = type { i64, [2 x i64] }
 %agda.struct.value.fn = type { i64, %agda.struct.eval } ; tag=0
 %agda.struct.value.data = type { i64, %agda.data.base* } ; tag=1
+%agda.struct.value.lit_nat = type { i64, i64 } ; tag=2
+%agda.struct.value.lit_w64 = type { i64, i64 } ; tag=3
+%agda.struct.value.lit_f64 = type { i64, double } ; tag=4
+%agda.struct.value.lit_str = type { i64, i8* } ; tag=5
+%agda.struct.value.lit_chr = type { i64, i8 } ; tag=6
 ; struct thunk { bool evaluated; union { struct eval eval; struct value *value; } }
 %agda.struct.thunk = type { i64, [16 x i8] }
 %agda.struct.thunk.eval = type { i64, %agda.struct.eval } ; evaluated=false
