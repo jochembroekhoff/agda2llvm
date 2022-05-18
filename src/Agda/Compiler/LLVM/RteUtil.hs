@@ -88,6 +88,13 @@ refRecordGet =
     , refType = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeFramePtr, i64], fnVariadic = False}
     }
 
+refRecordExtract :: LLVMRef
+refRecordExtract =
+  LLVMGlobal
+    { refName = LLVMIdent "agda.record.extract"
+    , refType = LLVMFn {fnRet = typeFramePtr, fnParams = [typeFramePtr, i64, typeThunkPtr], fnVariadic = False}
+    }
+
 --- Misc ---
 refMain :: LLVMRef
 refMain =

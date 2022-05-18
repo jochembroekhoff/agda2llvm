@@ -59,6 +59,10 @@ declare
 %agda.struct.thunk*
 @agda.record.get(%agda.struct.frame*, i64)
 
+declare
+%agda.struct.frame*
+@agda.record.extract(%agda.struct.frame*, i64, %agda.struct.thunk*)
+
 ;;;; END AGDA HEADER ;;;;
 
 ;;;; START AGDA OUTPUT ;;;;

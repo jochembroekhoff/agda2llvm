@@ -37,7 +37,7 @@ data ABody
       }
   | ACase
       { caseSubj :: ARecordIdx
-      , caseAlts :: [(AIdent, ABody)]
+      , caseAlts :: [(AIdent, Int, ABody)]
       , caseFallback :: ABody
       }
   | AError

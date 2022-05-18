@@ -300,17 +300,9 @@ define
 void
 @agda.record.push_replace(%agda.struct.frame** %curr, %agda.struct.thunk* %elem)
 {
-    %alloc = call i8* @GC_malloc(i64 16)
-    %frame = bitcast i8* %alloc to %agda.struct.frame*
-
-    ; set frame->elem
-    %frame_elem_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %frame, i32 0, i32 0
-    store %agda.struct.thunk* %elem, %agda.struct.thunk** %frame_elem_ptr
-
-    ; set frame->prev
-    %frame_prev_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %frame, i32 0, i32 1
+    ; dereference current pointer and create a new frame with it
     %curr_deref = load %agda.struct.frame*, %agda.struct.frame** %curr
-    store %agda.struct.frame* %curr_deref, %agda.struct.frame** %frame_prev_ptr
+    %frame = call %agda.struct.frame* @agda.record.internal.alloc(%agda.struct.thunk* %elem, %agda.struct.frame* %curr_deref)
 
     ; debug print
     call void(i8*, ...) @printf(i8* getelementptr ([51 x i8], [51 x i8]* @str.record_push_replace, i32 0, i32 0)
@@ -364,4 +356,81 @@ fin:
         , %agda.struct.thunk* %elem
         )
     ret %agda.struct.thunk* %elem
+}
+
+define
+internal
+%agda.struct.frame*
+@agda.record.internal.alloc(%agda.struct.thunk* %elem, %agda.struct.frame* %prev)
+{
+    %alloc = call i8* @GC_malloc(i64 16)
+    %frame = bitcast i8* %alloc to %agda.struct.frame*
+
+    ; set frame->elem
+    %frame_elem_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %frame, i32 0, i32 0
+    store %agda.struct.thunk* %elem, %agda.struct.thunk** %frame_elem_ptr
+
+    ; set frame->prev
+    %frame_prev_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %frame, i32 0, i32 1
+    store %agda.struct.frame* %prev, %agda.struct.frame** %frame_prev_ptr
+
+    ; return
+    ret %agda.struct.frame* %frame
+}
+
+define
+internal
+%agda.struct.frame*
+@agda.record.extract.copy_frame(%agda.struct.frame* %curr, i64 %arity, %agda.struct.frame* %src)
+{
+    %at_basecase = icmp eq i64 %arity, 0
+    br i1 %at_basecase, label %basecase, label %recurse
+
+basecase:
+    ret %agda.struct.frame* %curr
+
+recurse:
+    ; get current element and prev pointer
+    %src_elem_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %src, i32 0, i32 0
+    %src_prev_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %src, i32 0, i32 1
+    %src_elem = load %agda.struct.thunk*, %agda.struct.thunk** %src_elem_ptr
+    %src_prev = load %agda.struct.frame*, %agda.struct.frame** %src_prev_ptr
+
+    ; recurse to get the _actual_ prev pointer
+    %arity_min1 = sub i64 %arity, 1
+    %prev = call %agda.struct.frame* @agda.record.extract.copy_frame(%agda.struct.frame* %curr, i64 %arity_min1, %agda.struct.frame* %src_prev)
+
+    ; allocate and return new frame
+    %new = call %agda.struct.frame* @agda.record.internal.alloc(%agda.struct.thunk* %src_elem, %agda.struct.frame* %prev)
+    ret %agda.struct.frame* %new
+}
+
+define
+%agda.struct.frame*
+@agda.record.extract(%agda.struct.frame* %curr, i64 %arity, %agda.struct.thunk* %subj)
+{
+    ; force the thunk to obtain the value
+    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %subj)
+
+    ; value must be data, otherwise can't extract anything. check that now
+    %v_tag_ptr = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
+    %v_tag = load i64, i64* %v_tag_ptr
+    %v_tag_correct = icmp eq i64 %v_tag, 1 ; tag=1 is data
+    br i1 %v_tag_correct, label %TypeCorrect, label %TypeIncorrect
+
+TypeCorrect:
+    ; retrieve the data holder
+    %v_data = bitcast %agda.struct.value* %v to %agda.struct.value.value*
+    %data_base_ptr = getelementptr %agda.struct.value.value, %agda.struct.value.value* %v_data, i32 0, i32 1
+    %data_base = load %agda.data.base*, %agda.data.base** %data_base_ptr
+    ; get DATA field from the data base struct
+    %data_record_ptr = getelementptr %agda.data.base, %agda.data.base* %data_base, i32 0, i32 2
+    %data_record = load %agda.struct.frame*, %agda.struct.frame** %data_record_ptr
+    ; push data on top of the current frame
+    %new_frame = call %agda.struct.frame* @agda.record.extract.copy_frame(%agda.struct.frame* %curr, i64 %arity, %agda.struct.frame* %data_record)
+    ret %agda.struct.frame* %new_frame
+
+TypeIncorrect:
+    call void (i8*, ...) @printf(i8* getelementptr ([35 x i8], [35 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
+    ret %agda.struct.frame* null
 }

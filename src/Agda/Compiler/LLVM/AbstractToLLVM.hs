@@ -7,6 +7,7 @@ import Agda.Compiler.LLVM.Syntax
 import Agda.Compiler.LLVM.SyntaxUtil
 import Agda.Compiler.LLVM.Tables
 import Agda.Utils.Maybe (maybeToList)
+import Agda.Utils.Tuple
 
 class AToLlvm a b where
   aToLlvm :: a -> b
@@ -70,7 +71,7 @@ instance AToLlvm (AIdent, AThunk) (LLVMEntry, [LLVMEntry]) where
               }
           , llvmDiscard $
             LLVMStore
-              { storeSrc = LLVMLit $ LLVMNull typeFramePtr
+              { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
               , storeDest = LLVMLocal (llvmIdent "thunk_eval_record") (LLVMPtr typeFramePtr)
               }
           ]
@@ -152,9 +153,9 @@ instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
     where
       (fallbackIdentifier:altIdentifiers) = map (\i -> ident <> AIdent ("--case-" ++ show i)) [0 ..]
       fallbackEntries = aToLlvm (fallbackIdentifier, False, fallback)
-      altEntries = concat $ zipWith (\ident (_, altBody) -> aToLlvm (ident, False, altBody)) altIdentifiers alts
+      altEntries = concat $ zipWith (\ident (_, _, altBody) -> aToLlvm (ident, False, altBody)) altIdentifiers alts
       (fallbackEntry, switchEntries, branchBlocks) =
-        caseStuffTemp (zip (map fst alts) altIdentifiers) fallbackIdentifier
+        caseStuffTemp (zip3 (map fst3 alts) (map snd3 alts) altIdentifiers) fallbackIdentifier
       primaryBody
           -- load the case subject ("scrutinee")
        =
@@ -224,33 +225,50 @@ bodyTemplate ident push instructions = bodyTemplateBasic ident push (instruction
   where
     returnTheValue = llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "v") typeValuePtr
 
-caseStuffTemp :: [(AIdent, AIdent)] -> AIdent -> (LLVMIdent, [(LLVMLit, LLVMIdent)], [LLVMBlock])
+caseStuffTemp :: [(AIdent, Int, AIdent)] -> AIdent -> (LLVMIdent, [(LLVMLit, LLVMIdent)], [LLVMBlock])
 caseStuffTemp cases fallback = (labelDefault, cases''1, blockDefault : cases''2)
   where
-    fnBlock :: String -> AIdent -> LLVMIdent -> LLVMBlock
-    fnBlock varSuffix ident lbl =
+    fnBlock :: String -> Int -> AIdent -> LLVMIdent -> LLVMBlock
+    fnBlock varSuffix arity ident lbl =
       LLVMBlock
         lbl
-        [ llvmRecord var $
-          LLVMCall
-            { callRef = LLVMGlobal {refName = aToLlvm ident, refType = typeFnEvaluator}
-            , callArgs
-            -- TODO: extract data from args and push to record
-               = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMNull typeThunkPtr]
-            }
-        , llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent var) typeValuePtr
-        ]
+        (pushRecord ++
+         [ llvmRecord var $
+           LLVMCall
+             { callRef = LLVMGlobal {refName = aToLlvm ident, refType = typeFnEvaluator}
+             , callArgs = [LLVMRef $ LLVMLocal (llvmIdent recordVar) typeFramePtr, LLVMLit $ LLVMNull typeThunkPtr]
+             }
+         , llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent var) typeValuePtr
+         ])
       where
         var = "v-" ++ varSuffix
-    fn :: Int -> (AIdent, AIdent) -> ((LLVMLit, LLVMIdent), LLVMBlock)
-    fn i (ctorIdent, destIdent) = ((LLVMInt i64 dataId, lbl), block)
+        recordVar =
+          if arity == 0
+            then "record"
+            else "record_extracted-" ++ varSuffix
+        pushRecord =
+          case arity of
+            0 -> []
+            n ->
+              [ llvmRecord recordVar $
+                LLVMCall
+                  { callRef = refRecordExtract
+                  , callArgs =
+                      [ LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
+                      , LLVMLit $ LLVMInt i64 arity
+                      , LLVMRef $ LLVMLocal (llvmIdent "case_subj_thunk") typeThunkPtr
+                      ]
+                  }
+              ]
+    fn :: Int -> (AIdent, Int, AIdent) -> ((LLVMLit, LLVMIdent), LLVMBlock)
+    fn i (ctorIdent, arity, destIdent) = ((LLVMInt i64 dataId, lbl), block)
       where
         dataId = uncurry (+) $ computeCtorIdent ctorIdent
         lbl = llvmIdent $ "case-" ++ show i
-        block = fnBlock (show i) destIdent lbl
+        block = fnBlock (show i) arity destIdent lbl
     -- calculate output for the fallback case
     labelDefault = llvmIdent "case-default"
-    blockDefault = fnBlock "default" fallback labelDefault
+    blockDefault = fnBlock "default" 0 fallback labelDefault
     -- calculate output for the normal cases
     cases' = zipWith fn [0 ..] cases
     cases''1 = map fst cases'
@@ -262,7 +280,10 @@ instance AToLlvm (AArg, Int) (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)]) w
       argIdx
       \local ->
         [ llvmRecord local $
-          LLVMCall {callRef = LLVMGlobal (aToLlvm ident) typeFnCreator, callArgs = [LLVMLit $ LLVMNull typeFramePtr]}
+          LLVMCall
+            { callRef = LLVMGlobal (aToLlvm ident) typeFnCreator
+            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr]
+            }
         ]
   aToLlvm (ARecord (ARecordIdx idx), argIdx) =
     argTemplate

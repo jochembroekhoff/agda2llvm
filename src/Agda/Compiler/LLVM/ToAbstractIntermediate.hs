@@ -96,12 +96,12 @@ instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
     (arg, entries) <- toArg (qn, tt)
     return (AAppl arg [], entries)
 
-instance ToAbstractIntermediate (AIdent, TAlt) ((AIdent, ABody), [AEntry]) where
+instance ToAbstractIntermediate (AIdent, TAlt) ((AIdent, Int, ABody), [AEntry]) where
   toA (qn, TACon cn arity body) = do
     cn' <- toA cn
     -- TODO: maybe don't pass @qn@, but derived version with suffix?
     (body', bodyEntries) <- toA (qn, body)
-    return ((cn', body'), bodyEntries)
+    return ((cn', arity, body'), bodyEntries)
   toA _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
 
 tmpLift :: (AIdent, TTerm) -> String -> ToAM (AArg, [AEntry])
