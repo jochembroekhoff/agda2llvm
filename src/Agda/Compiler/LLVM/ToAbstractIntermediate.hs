@@ -45,7 +45,9 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
         case tl of
           Nothing -> return Nothing
           Just tt -> Just <$> transformFunction qn tt
-      Primitive {} -> return Nothing
+      Primitive {primName = nm} -> do
+        liftIO $ putStr $ "PRIM: " ++ nm
+        return Nothing
       PrimitiveSort {} -> return Nothing
       Datatype {} -> return Nothing
       Record {} -> return Nothing
@@ -68,7 +70,6 @@ transformFunction qn tt = do
   return (qn', bodyEntry : otherEntries)
 
 instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
-  toA (_, TPrim _) = __IMPOSSIBLE_VERBOSE__ "not implemented"
   toA (qn, TApp subj args) = do
     (subjHolder, subjEntries) <- toArg (qn, subj)
     args' <- traverse (toArg . (qn, )) args
@@ -119,6 +120,7 @@ tmpLift info@(qn, tt) kind = do
 
 toArg :: (AIdent, TTerm) -> ToAM (AArg, [AEntry])
 toArg (_, TVar idx) = return (ARecord $ ARecordIdx idx, [])
+toArg (_, TPrim prim) = return (AExt $ AIdentRaw $ "agda.prim." ++ primIdent prim, [])
 toArg (_, TDef qn) = do
   qn' <- toA qn
   return (AExt qn', [])
@@ -130,6 +132,33 @@ toArg info@(qn, TCase {}) = tmpLift info "case"
 toArg (_, TErased) = return (AErased, [])
 toArg (qn, TCoerce tt) = toArg (qn, tt)
 toArg _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
+
+primIdent :: TPrim -> String
+primIdent =
+  \case
+    PAdd -> "add"
+    PAdd64 -> "add"
+    PSub -> "sub"
+    PSub64 -> "sub"
+    PMul -> "mul"
+    PMul64 -> "mul"
+    PQuot -> "quot"
+    PQuot64 -> "quot"
+    PRem -> "rem"
+    PRem64 -> "rem"
+    PGeq -> "geq"
+    PLt -> "lt"
+    PLt64 -> "lt64"
+    PEqI -> "eqi"
+    PEq64 -> "eqi"
+    PEqF -> "eqf"
+    PEqS -> "eqs"
+    PEqC -> "eqc"
+    PEqQ -> undefined
+    PIf -> undefined
+    PSeq -> undefined
+    PITo64 -> "ito64"
+    P64ToI -> "64toi"
 
 transformCtor :: AIdent -> Int -> [AEntry]
 transformCtor baseName 0 =
