@@ -37,6 +37,11 @@ fileOutput isMain = do
           NotMain -> "so"
   return $ d </> "out" <.> ext
 
+headerPre, headerPost :: String
+headerPre = ";;;; BEGIN AGDA HEADER ;;;;\n\n"
+
+headerPost = "\n;;;; END AGDA HEADER ;;;;\n\n"
+
 writeIntermediate :: ModuleName -> LLVMModule -> TCM FilePath
 writeIntermediate modName modContent = do
   p <- fileIntermediate modName
@@ -44,7 +49,7 @@ writeIntermediate modName modContent = do
   liftIO
     do createDirectoryIfMissing True $ takeDirectory p
        header <- getRteHeader
-       writeFile p (header ++ pretty)
+       writeFile p (headerPre ++ header ++ headerPost ++ pretty)
   return p
 
 callLLVM :: LLVMOptions -> IsMain -> [FilePath] -> TCM ()
@@ -62,10 +67,13 @@ callLLVM opt isMain intermediates = do
 
 getRteFiles :: IsMain -> IO [FilePath]
 getRteFiles isMain = do
-  let files = ["Agda.ll"]
+  let files = ["Agda.ll", "AgdaPrim.ll", "gen" </> "AgdaPrimWrap.ll"]
   traverse getDataFileName files
 
 getRteHeader :: IO String
 getRteHeader = do
-  f <- getDataFileName "header.ll"
-  readFile f
+  fGeneral <- getDataFileName "header.ll"
+  sGeneral <- readFile fGeneral
+  fPrim <- getDataFileName $ "gen" </> "header-prim.ll"
+  sPrim <- readFile fPrim
+  return (sGeneral ++ sPrim)

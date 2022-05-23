@@ -35,7 +35,10 @@ dependencies:
 data-dir: data
 data-files:
 - Agda.ll
+- AgdaPrim.ll
 - header.ll
+- gen/AgdaPrimWrap.ll
+- gen/header-prim.ll
 
 library:
   source-dirs: src

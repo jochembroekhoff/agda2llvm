@@ -18,7 +18,10 @@ extra-source-files:
     CHANGELOG.md
 data-files:
     Agda.ll
+    AgdaPrim.ll
     header.ll
+    gen/AgdaPrimWrap.ll
+    gen/header-prim.ll
 data-dir:       data
 
 source-repository head

@@ -1,5 +1,3 @@
-;;;; BEGIN AGDA HEADER ;;;;
-
 ;; Agda basic structures
 
 ; struct eval { struct value * (*value_ptr)(void *); void *record; }
@@ -67,8 +65,3 @@ declare
 declare
 %agda.struct.frame*
 @agda.record.extract(%agda.struct.frame*, i64, %agda.struct.thunk*)
-
-;;;; END AGDA HEADER ;;;;
-
-;;;; START AGDA OUTPUT ;;;;
-
