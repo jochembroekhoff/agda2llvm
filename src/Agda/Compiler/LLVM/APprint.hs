@@ -34,11 +34,7 @@ instance APretty ABody where
     unlines
       ["appl = " ++ aPretty subj ++ "()", "-- TODO: " ++ show (length args) ++ " arg(s)", "ret APPL(appl, ARGS...)"]
   aPretty (ACase subj alts fallback) =
-    unlines
-      [ "case_scrutinee = " ++ aPretty subj
-      , "-- TODO: " ++ show (length alts) ++ " alternative(s)"
-      , "ret CASE(subj, ALTS...)"
-      ]
+    unlines ["case_scrutinee = " ++ aPretty subj, "-- TODO: alternative(s)", "ret CASE(subj, ALTS...)"]
   aPretty (AError text) = "ERROR " ++ quote text
 
 instance APretty ARecordIdx where

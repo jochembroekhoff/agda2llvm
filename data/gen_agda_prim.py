@@ -5,14 +5,14 @@ Output is to be linked with the other parts of the Agda runtime.
 
 PRIMITIVES = [
     ("add", 2),
-    # ("sub", 2),
+    ("sub", 2),
     ("mul", 2),
     # ("quot", 2),
     # ("rem", 2),
     # ("geq", 2),
     # ("lt", 2),
     # ("lt64", 2),
-    # ("eqi", 2),
+    ("eqi", 2),
     # ("eqf", 2),
     # ("eqs", 2),
     # ("eqc", 2),

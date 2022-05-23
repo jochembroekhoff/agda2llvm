@@ -10,6 +10,7 @@ import Agda.Compiler.LLVM.Tables (computeCtorIdent)
 import Agda.Compiler.Treeless.NormalizeNames (normalizeNames)
 import Agda.Syntax.Common (LensModality(getModality), usableModality)
 import Agda.Syntax.Internal (ConHead(conName))
+import Agda.Syntax.Literal
 import Agda.Utils.Impossible (__IMPOSSIBLE__)
 import Agda.Utils.Lens
 import Agda.Utils.Maybe (liftMaybe)
@@ -46,11 +47,11 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
           Nothing -> return Nothing
           Just tt -> Just <$> transformFunction qn tt
       Primitive {primName = nm} -> do
-        liftIO $ putStr $ "PRIM: " ++ nm
+        liftIO $ putStrLn $ "PRIM: " ++ nm
         return Nothing
       PrimitiveSort {} -> return Nothing
       Datatype {} -> return Nothing
-      Record {} -> return Nothing
+      Record {} -> __IMPOSSIBLE_VERBOSE__ "not implemented"
       Constructor {conSrcCon = chead, conArity = nargs} -> do
         name <- toA $ conName chead
         let entries = transformCtor name nargs
@@ -86,12 +87,20 @@ instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
       , innerEntries ++ [AEntryDirect {entryIdent = innerName, entryPushArg = True, entryBody = innerBody}])
   toA (_, TLit lit) = return (AMkValue $ AValueLit lit, [])
   toA (qn, TLet value body) = toA (qn, TApp (TLam body) [value])
-  toA (qn, TCase idx _ fallback alts) = do
+  toA (qn, TCase idx (CaseInfo _ ct) fallback alts) = do
     (fallbackBody, fallbackEntries) <- toA (qn, fallback)
-    alts' <- traverse (toA . (qn, )) alts
-    let altMatchPairs = map fst alts'
-        altEntries = concatMap snd alts'
-    return (ACase (ARecordIdx idx) altMatchPairs fallbackBody, altEntries ++ fallbackEntries)
+    case ct of
+      CTData {} -> do
+        alts' <- traverse (toA . (qn, )) alts
+        let altMatchPairs = AAData $ map fst alts'
+            altEntries = concatMap snd alts'
+        return (ACase (ARecordIdx idx) altMatchPairs fallbackBody, altEntries ++ fallbackEntries)
+      CTNat -> do
+        alts' <- traverse (toA . (qn, )) alts
+        let altMatchPairs = AANat $ map fst alts'
+            altEntries = concatMap snd alts'
+        return (ACase (ARecordIdx idx) altMatchPairs fallbackBody, altEntries ++ fallbackEntries)
+      _ -> __IMPOSSIBLE_VERBOSE__ "not implemented yet"
   toA (qn, TCoerce tt) = toA (qn, tt)
   toA (qn, TError TUnreachable) = return (AError "unreachable", [])
   toA (qn, TError (TMeta msg)) = return (AError ("meta: " ++ msg), [])
@@ -105,7 +114,15 @@ instance ToAbstractIntermediate (AIdent, TAlt) ((AIdent, Int, ABody), [AEntry]) 
     -- TODO: maybe don't pass @qn@, but derived version with suffix?
     (body', bodyEntries) <- toA (qn, body)
     return ((cn', arity, body'), bodyEntries)
-  toA _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
+  toA _ = __IMPOSSIBLE_VERBOSE__ "didn't expect anything else than TACon in a data-switch"
+
+instance ToAbstractIntermediate (AIdent, TAlt) ((Int, ABody), [AEntry]) where
+  toA (qn, TALit (LitNat num) body)
+    -- TODO: maybe don't pass @qn@, but derived version with suffix?
+   = do
+    (body', bodyEntries) <- toA (qn, body)
+    return ((fromIntegral num, body'), bodyEntries)
+  toA _ = __IMPOSSIBLE_VERBOSE__ "didn't expect anything else than (TALit (LitNat _) _) in a nat-literal-switch"
 
 tmpLift :: (AIdent, TTerm) -> String -> ToAM (AArg, [AEntry])
 tmpLift info@(qn, tt) kind = do

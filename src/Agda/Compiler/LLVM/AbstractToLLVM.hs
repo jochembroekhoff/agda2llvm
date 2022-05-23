@@ -150,7 +150,7 @@ instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
       -- | terminator arg signals the end of the variadic arguments
       terminatorArg = LLVMLit $ LLVMNull typeThunkPtr
       instrDoApply = [llvmRecord "v" $ LLVMCall {callRef = refApplN, callArgs = refSubj : refsArgs ++ [terminatorArg]}]
-  aToLlvm (ident, push, ACase (ARecordIdx subj) alts fallback) =
+  aToLlvm (ident, push, ACase (ARecordIdx subj) (AAData alts) fallback) =
     bodyTemplateBasic ident push primaryBody branchBlocks : fallbackEntries ++ altEntries
     where
       (fallbackIdentifier:altIdentifiers) = map (\i -> ident <> AIdent ("--case-" ++ show i)) [0 ..]
@@ -158,6 +158,33 @@ instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
       altEntries = concat $ zipWith (\ident (_, _, altBody) -> aToLlvm (ident, False, altBody)) altIdentifiers alts
       (fallbackEntry, switchEntries, branchBlocks) =
         caseStuffTemp (zip3 (map fst3 alts) (map snd3 alts) altIdentifiers) fallbackIdentifier
+      primaryBody
+          -- load the case subject ("scrutinee")
+       =
+        [ llvmRecord "case_subj_thunk" $
+          LLVMCall
+            { callRef = refRecordGet
+            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt i64 subj]
+            }
+          -- call runtime to obtain identification info (data id)
+        , llvmRecord "data_id" $
+          LLVMCall {callRef = refCaseData, callArgs = [LLVMRef $ LLVMLocal (llvmIdent "case_subj_thunk") typeThunkPtr]}
+          -- switch on the data id
+        , llvmDiscard $
+          LLVMSwitch
+            { switchSubj = LLVMRef $ LLVMLocal (llvmIdent "data_id") i64
+            , switchDefault = fallbackEntry
+            , switchBranches = switchEntries
+            }
+        ]
+  aToLlvm (ident, push, ACase (ARecordIdx subj) (AANat alts) fallback) =
+    bodyTemplateBasic ident push primaryBody branchBlocks : fallbackEntries ++ altEntries
+    where
+      (fallbackIdentifier:altIdentifiers) = map (\i -> ident <> AIdent ("--case-" ++ show i)) [0 ..]
+      fallbackEntries = aToLlvm (fallbackIdentifier, False, fallback)
+      altEntries = concat $ zipWith (\ident (_, altBody) -> aToLlvm (ident, False, altBody)) altIdentifiers alts
+      (fallbackEntry, switchEntries, branchBlocks) =
+        caseStuffTemp2 (zip (map fst alts) altIdentifiers) fallbackIdentifier
       primaryBody
           -- load the case subject ("scrutinee")
        =
@@ -271,6 +298,35 @@ caseStuffTemp cases fallback = (labelDefault, cases''1, blockDefault : cases''2)
     -- calculate output for the fallback case
     labelDefault = llvmIdent "case-default"
     blockDefault = fnBlock "default" 0 fallback labelDefault
+    -- calculate output for the normal cases
+    cases' = zipWith fn [0 ..] cases
+    cases''1 = map fst cases'
+    cases''2 = map snd cases'
+
+caseStuffTemp2 :: [(Int, AIdent)] -> AIdent -> (LLVMIdent, [(LLVMLit, LLVMIdent)], [LLVMBlock])
+caseStuffTemp2 cases fallback = (labelDefault, cases''1, blockDefault : cases''2)
+  where
+    fnBlock :: String -> AIdent -> LLVMIdent -> LLVMBlock
+    fnBlock varSuffix ident lbl =
+      LLVMBlock
+        lbl
+        [ llvmRecord var $
+          LLVMCall
+            { callRef = LLVMGlobal {refName = aToLlvm ident, refType = typeFnEvaluator}
+            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMNull typeThunkPtr]
+            }
+        , llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent var) typeValuePtr
+        ]
+      where
+        var = "v-" ++ varSuffix
+    fn :: Int -> (Int, AIdent) -> ((LLVMLit, LLVMIdent), LLVMBlock)
+    fn i (num, destIdent) = ((LLVMInt i64 num, lbl), block)
+      where
+        lbl = llvmIdent $ "case-" ++ show i
+        block = fnBlock (show i) destIdent lbl
+    -- calculate output for the fallback case
+    labelDefault = llvmIdent "case-default"
+    blockDefault = fnBlock "default" fallback labelDefault
     -- calculate output for the normal cases
     cases' = zipWith fn [0 ..] cases
     cases''1 = map fst cases'

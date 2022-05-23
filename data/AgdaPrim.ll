@@ -101,6 +101,33 @@ define
 
 define
 %agda.struct.value*
+@agda.prim.impl.sub(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+{
+    ; get left value
+    %v_l_lit_nat = bitcast %agda.struct.value* %v_l_raw to %agda.struct.value.lit_nat*
+    %v_l_ptr = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_l_lit_nat, i32 0, i32 1
+    %v_l = load i64, i64* %v_l_ptr
+
+    ; get right value
+    %v_r_lit_nat = bitcast %agda.struct.value* %v_r_raw to %agda.struct.value.lit_nat*
+    %v_r_ptr = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_r_lit_nat, i32 0, i32 1
+    %v_r = load i64, i64* %v_r_ptr
+
+    ; compute result
+    %v_result = sub i64 %v_l, %v_r
+
+    ; box the result and return it
+    %v = call %agda.struct.value*() @agda.alloc.value()
+    %v_tag = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
+    store i64 2, i64* %v_tag
+    %v_lit = bitcast %agda.struct.value* %v to %agda.struct.value.lit_nat*
+    %lit = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_lit, i32 0, i32 1
+    store i64 %v_result, i64* %lit
+    ret %agda.struct.value* %v
+}
+
+define
+%agda.struct.value*
 @agda.prim.impl.mul(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
 {
     ; get left value
@@ -126,3 +153,30 @@ define
     ret %agda.struct.value* %v
 }
 
+define
+%agda.struct.value*
+@agda.prim.impl.eqi(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+{
+    ; get left value
+    %v_l_lit_nat = bitcast %agda.struct.value* %v_l_raw to %agda.struct.value.lit_nat*
+    %v_l_ptr = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_l_lit_nat, i32 0, i32 1
+    %v_l = load i64, i64* %v_l_ptr
+
+    ; get right value
+    %v_r_lit_nat = bitcast %agda.struct.value* %v_r_raw to %agda.struct.value.lit_nat*
+    %v_r_ptr = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_r_lit_nat, i32 0, i32 1
+    %v_r = load i64, i64* %v_r_ptr
+
+    ; compute result
+    %v_result_raw = icmp eq i64 %v_l, %v_r
+    %v_result = zext i1 %v_result_raw to i64
+
+    ; box the result and return it
+    %v = call %agda.struct.value*() @agda.alloc.value()
+    %v_tag = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
+    store i64 2, i64* %v_tag
+    %v_lit = bitcast %agda.struct.value* %v to %agda.struct.value.lit_nat*
+    %lit = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_lit, i32 0, i32 1
+    store i64 %v_result, i64* %lit
+    ret %agda.struct.value* %v
+}

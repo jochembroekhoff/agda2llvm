@@ -39,12 +39,16 @@ data ABody
       }
   | ACase
       { caseSubj :: ARecordIdx
-      , caseAlts :: [(AIdent, Int, ABody)]
+      , caseAlts :: AAlts
       , caseFallback :: ABody
       }
   | AError
       { errorText :: String
       }
+
+data AAlts
+  = AAData [(AIdent, Int, ABody)]
+  | AANat [(Int, ABody)]
 
 newtype ARecordIdx =
   ARecordIdx Int
