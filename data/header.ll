@@ -49,6 +49,10 @@ i64
 @agda.eval.case.data(%agda.struct.thunk*)
 
 declare
+i64
+@agda.eval.case.lit_nat(%agda.struct.thunk*)
+
+declare
 %agda.struct.value*
 @agda.eval.main(%agda.struct.thunk*(%agda.struct.frame*)*)
 
