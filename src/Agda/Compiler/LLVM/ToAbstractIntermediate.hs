@@ -48,7 +48,7 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
           Just tt -> Just <$> transformFunction qn tt
       Primitive {primName = nm} -> do
         liftIO $ putStrLn $ "PRIM: " ++ nm
-        return Nothing
+        Just <$> transformPrimitive qn nm
       PrimitiveSort {} -> return Nothing
       Datatype {} -> return Nothing
       Record {} -> __IMPOSSIBLE_VERBOSE__ "not implemented"
@@ -67,8 +67,15 @@ transformFunction :: QName -> TTerm -> ToAM (AIdent, [AEntry])
 transformFunction qn tt = do
   qn' <- toA qn
   (body, otherEntries) <- toA (qn', tt)
-  let bodyEntry = AEntryThunk {entryIdent = qn', entryPrivate = False, entryThunk = AThunkDelay body}
+  let bodyEntry = AEntryThunk {entryIdent = qn', entryPrivate = False, entryThunk = bodyToThunkMaybeDirect body}
   return (qn', bodyEntry : otherEntries)
+
+transformPrimitive :: QName -> String -> ToAM (AIdent, [AEntry])
+transformPrimitive qn primName = do
+  qn' <- toA qn
+  let primIdent = AIdentRaw $ "agda.prim." ++ primName
+      bodyEntry = AEntryAlias {aliasIdent = qn', aliasOf = primIdent}
+  return (qn', [bodyEntry])
 
 instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
   toA (qn, TApp subj args) = do
@@ -124,6 +131,12 @@ instance ToAbstractIntermediate (AIdent, TAlt) ((Int, ABody), [AEntry]) where
     return ((fromIntegral num, body'), bodyEntries)
   toA _ = __IMPOSSIBLE_VERBOSE__ "didn't expect anything else than (TALit (LitNat _) _) in a nat-literal-switch"
 
+-- | Convert a body into a thunk.
+--   In case the body is a value constructor, the value is lifted into a direct thunk, saving one indirection
+bodyToThunkMaybeDirect :: ABody -> AThunk
+bodyToThunkMaybeDirect (AMkValue value) = AThunkValue value
+bodyToThunkMaybeDirect body = AThunkDelay body
+
 tmpLift :: (AIdent, TTerm) -> String -> ToAM (AArg, [AEntry])
 tmpLift info@(qn, tt) kind = do
   next <- get
@@ -132,7 +145,7 @@ tmpLift info@(qn, tt) kind = do
   (body, entries) <- toA info
   -- construct the lifted member and return
   let qn' = qn <> AIdent ("--" ++ kind ++ "_lift-" ++ show next)
-      entry = AEntryThunk {entryIdent = qn', entryPrivate = True, entryThunk = AThunkDelay body}
+      entry = AEntryThunk {entryIdent = qn', entryPrivate = True, entryThunk = bodyToThunkMaybeDirect body}
   return (AExt qn', entry : entries)
 
 toArg :: (AIdent, TTerm) -> ToAM (AArg, [AEntry])
@@ -171,9 +184,9 @@ primIdent =
     PEqF -> "eqf"
     PEqS -> "eqs"
     PEqC -> "eqc"
-    PEqQ -> undefined
-    PIf -> undefined
-    PSeq -> undefined
+    PEqQ -> "eqq"
+    PIf -> "if"
+    PSeq -> "seq"
     PITo64 -> "ito64"
     P64ToI -> "64toi"
 

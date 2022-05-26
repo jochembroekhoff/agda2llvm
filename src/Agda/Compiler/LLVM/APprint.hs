@@ -23,6 +23,7 @@ instance APretty AEntry where
   aPretty (AEntryDirect ident False body) = aPretty ident ++ "() =\n" ++ indent (aPretty body)
   aPretty (AEntryDirect ident True body) = aPretty ident ++ "(p) =\n" ++ indent (aPretty body)
   aPretty (AEntryMain mainIdent) = "main() = <runtime-main>(" ++ aPretty mainIdent ++ ")"
+  aPretty (AEntryAlias ident alias) = aPretty ident ++ " =alias= " ++ aPretty alias
 
 instance APretty AThunk where
   aPretty (AThunkDelay body) = "THUNK.delay{\n" ++ indent (aPretty body) ++ "}"

@@ -1,6 +1,7 @@
 module Agda.Compiler.LLVM.RteUtil where
 
 import Agda.Compiler.LLVM.Syntax
+import Agda.Compiler.LLVM.SyntaxUtil (llvmIdent)
 
 i8 :: LLVMType
 i8 = LLVMSizedInt 8
@@ -135,6 +136,10 @@ refCaseData =
 
 typeFnCreator :: LLVMType
 typeFnCreator = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeFramePtr], fnVariadic = False}
+
+mkCreatorFnSign :: LLVMIdent -> LLVMFnSign
+mkCreatorFnSign ident =
+  LLVMFnSign {fnName = ident, fnType = typeThunkPtr, fnArgs = [(typeFramePtr, llvmIdent "record")]}
 
 typeFnEvaluator :: LLVMType
 typeFnEvaluator = LLVMFn {fnRet = typeValuePtr, fnParams = [typeFramePtr, typeThunkPtr], fnVariadic = False}

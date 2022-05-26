@@ -20,6 +20,10 @@ data AEntry
   | AEntryMain
       { mainReference :: AIdent
       }
+  | AEntryAlias
+      { aliasIdent :: AIdent
+      , aliasOf :: AIdent
+      }
 
 data AThunk
   = AThunkDelay

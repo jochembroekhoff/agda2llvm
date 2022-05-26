@@ -39,6 +39,22 @@ instance AToLlvm AEntry [LLVMEntry]
             ]
         }
     ]
+  aToLlvm (AEntryAlias ident alias) =
+    [ LLVMFnDefn
+        { fnSign = mkCreatorFnSign $ aToLlvm ident
+        , body =
+            [ LLVMBlock
+                (llvmIdent "begin")
+                [ llvmRecord "res" $
+                  LLVMCall
+                    { callRef = LLVMGlobal (aToLlvm alias) typeFnCreator
+                    , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr]
+                    }
+                , llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "res") typeThunkPtr
+                ]
+            ]
+        }
+    ]
 
 instance AToLlvm (AIdent, AThunk) (LLVMEntry, [LLVMEntry]) where
   aToLlvm (ident, AThunkDelay body) = (thunkConstructor, thunkEvaluator)
@@ -105,7 +121,7 @@ instance AToLlvm (AIdent, AThunk) (LLVMEntry, [LLVMEntry]) where
 thunkCreatorTemplate :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
 thunkCreatorTemplate ident isEval instructions =
   LLVMFnDefn
-    { fnSign = LLVMFnSign {fnName = aToLlvm ident, fnType = typeThunkPtr, fnArgs = [(typeFramePtr, llvmIdent "record")]}
+    { fnSign = mkCreatorFnSign $ aToLlvm ident
     , body = [LLVMBlock (llvmIdent "begin") (constructThunkHolder ++ instructions ++ [returnThunkHolder])]
     }
   where

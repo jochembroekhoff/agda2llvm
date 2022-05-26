@@ -3,7 +3,10 @@ Script to generate Agda primitive wrappers, in LLVM IR format.
 Output is to be linked with the other parts of the Agda runtime.
 """
 
-PRIMITIVES = [
+import itertools
+
+
+FROM_TPRIM = [
     ("add", 2),
     ("sub", 2),
     ("mul", 2),
@@ -16,9 +19,31 @@ PRIMITIVES = [
     # ("eqf", 2),
     # ("eqs", 2),
     # ("eqc", 2),
+    # ("eqq", 2),
+    # ("if", 2),
+    # ("seq", 2),
     # ("ito64", 2),
     # ("64toi", 2),
 ]
+
+FROM_ANNO = [
+    ("primNatPlus", 2),
+    ("primNatMinus", 2),
+    ("primNatTimes", 2),
+]
+
+PRIMITIVES = FROM_TPRIM + FROM_ANNO
+
+RUNTIME_ERROR_PRIMITIVES = [
+    "primLevelZero",
+    "primLevelSuc",
+    "primLevelMax",
+    "primNatEquality",
+    "primNatLess",
+    "primNatDivSucAux",
+    "primNatModSucAux",
+]
+RUNTIME_ERROR_PRIMITIVES__ARITIZED = list(map(lambda prim: (prim, 0), RUNTIME_ERROR_PRIMITIVES))
 
 
 def gen_prim(name: str, arity: int) -> str:
@@ -102,6 +127,18 @@ def gen_prim(name: str, arity: int) -> str:
     return res
 
 
+def gen_prim_error(name: str) -> str:
+    return f"""\
+        define
+        %agda.struct.thunk*
+        @agda.prim.{name}(%agda.struct.frame* %record)
+        {{
+            call void (i8*, ...) @printf(i8* getelementptr ([28 x i8], [28 x i8]* @str.unexpected_primitive, i32 0, i32 0))
+            ret %agda.struct.thunk* null
+        }}
+        """
+
+
 def main():
     # Generate curried wrappers
     with open("gen/AgdaPrimWrap.ll", "w") as f:
@@ -110,16 +147,26 @@ def main():
             for line in f_header:
                 f.write(line)
 
+        # Copy preamble stuff
+        with open("gen_agda_prim-preamble.ll", "r") as f_preamble:
+            for line in f_preamble:
+                f.write(line)
+
         # Write primitive wrappers
         for prim_name, prim_arity in PRIMITIVES:
             f.write(gen_prim(prim_name, prim_arity))
+            f.write("\n")
+
+        # Write error wrappers
+        for prim_name in RUNTIME_ERROR_PRIMITIVES:
+            f.write(gen_prim_error(prim_name))
             f.write("\n")
 
     # Generate header
     with open("gen/header-prim.ll", "w") as f:
         f.write(";; Agda Primitives")
         f.write("\n\n")
-        for prim_name, _ in PRIMITIVES:
+        for prim_name, _ in itertools.chain(PRIMITIVES, RUNTIME_ERROR_PRIMITIVES__ARITIZED):
             f.write(f"""\
                 declare
                 %agda.struct.thunk*
