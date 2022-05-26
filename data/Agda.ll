@@ -253,6 +253,31 @@ TypeIncorrect:
     ret i64 0
 }
 
+define
+i64
+@agda.eval.case.lit_nat(%agda.struct.thunk* %subj_v_thunk)
+{
+    ; force the thunk to obtain the value
+    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %subj_v_thunk)
+
+    ; value must be data, otherwise can't extract identification. check that now
+    %v_tag_ptr = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
+    %v_tag = load i64, i64* %v_tag_ptr
+    %v_tag_correct = icmp eq i64 %v_tag, 2 ; tag=2 is lit_nat
+    br i1 %v_tag_correct, label %TypeCorrect, label %TypeIncorrect
+
+TypeCorrect:
+    ; retrieve the underlying value
+    %v_lit_nat = bitcast %agda.struct.value* %v to %agda.struct.value.lit_nat*
+    %v_content_nat_ptr = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_lit_nat, i32 0, i32 1
+    %v_content_nat = load i64, i64* %v_content_nat_ptr
+    ret i64 %v_content_nat
+
+TypeIncorrect:
+    call void (i8*, ...) @printf(i8* getelementptr ([35 x i8], [35 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
+    ret i64 0
+}
+
 @str.force_is_null = private constant [19 x i8] c"AGDA: result null\0A\00"
 @str.main_res_pfx = private constant [15 x i8] c"AGDA: result: \00"
 

@@ -6,15 +6,32 @@ module Agda.Compiler.LLVM.Compiler where
 import Agda.Compiler.Backend
 import Agda.Compiler.Common (compileDir)
 import Agda.Compiler.LLVM.ASyntax
+import Agda.Compiler.LLVM.ASyntaxUtil (aIdentFromQName)
 import Agda.Compiler.LLVM.AbstractToLLVM (AToLlvm(aToLlvm))
 import Agda.Compiler.LLVM.Options (LLVMOptions, defaultLLVMOptions)
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
+  ( LLVMBlock(LLVMBlock, blockInstructions)
+  , LLVMEntry(..)
+  , LLVMFnSign(LLVMFnSign, fnArgs, fnName, fnType)
+  , LLVMIdent(..)
+  , LLVMInstruction(LLVMCall, callRef)
+  , LLVMModule(..)
+  , LLVMRef(LLVMGlobal, refName, refType)
+  )
 import Agda.Compiler.LLVM.SyntaxUtil (llvmIdent)
+import Agda.Compiler.LLVM.Tables (computeCtorIdent)
 import Agda.Compiler.LLVM.ToAbstractIntermediate (ToAbstractIntermediate(toA))
-import Agda.Compiler.LLVM.Wiring (callLLVM, fileIntermediate, writeIntermediate)
+import Agda.Compiler.LLVM.Wiring
+  ( callLLVM
+  , fileIntermediateAux
+  , fileIntermediateMod
+  , writeIntermediateAux
+  , writeIntermediateModule
+  )
 import Agda.Interaction.Options (OptDescr)
+import Agda.TypeChecking.Primitive (getBuiltinName)
 import Agda.Utils.Pretty (prettyShow)
 import Agda.Utils.Tuple (mapFstM)
 import Control.Monad.IO.Class (liftIO)
@@ -64,18 +81,20 @@ llvmPreCompile :: LLVMOptions -> TCM LLVMOptions
 llvmPreCompile = return
 
 llvmPostCompile :: LLVMOptions -> IsMain -> Map.Map ModuleName LLVMModule -> TCM ()
-llvmPostCompile opts isMain modules
-   -- TODO: write meta.ll with string and case tables
- = do
-  modules' <- traverse (uncurry writeIntermediate) $ Map.toList modules
-  callLLVM opts isMain modules'
+llvmPostCompile opts isMain modules = do
+  modules' <- traverse (uncurry writeIntermediateModule) $ Map.toList modules
+  auxMetaModule <- llvmAuxMetaModule
+  auxMeta <- writeIntermediateAux "meta" auxMetaModule
+  auxBuiltinRefsModule <- llvmAuxBuiltinRefsModule
+  auxBuiltinRefs <- writeIntermediateAux "builtin_refs" auxBuiltinRefsModule
+  callLLVM opts isMain (auxMeta : auxBuiltinRefs : modules')
 
 --- Module & defs compilation ---
 llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [[AEntry]] -> TCM LLVMModule
 llvmPostModule _ _ main m defs = do
   d <- compileDir
   let m' = mnameToList m
-  interm <- fileIntermediate m
+  interm <- fileIntermediateMod m
   liftIO
     do putStrLn $ "Module: " ++ prettyShow m'
        putStrLn $ "IsMain: " ++ show (main == IsMain)
@@ -129,3 +148,28 @@ llvmThunkImports entries = map declare (Set.toList implicitDeclarations)
 --   already brought into scope by default, or if applicable.
 llvmIsImportable :: LLVMIdent -> Bool
 llvmIsImportable (LLVMIdent identRaw) = any (`isPrefixOf` identRaw) ["agda2llvm.", "\"agda2llvm."]
+
+llvmAuxMetaModule :: TCM LLVMModule
+llvmAuxMetaModule = return $ LLVMModule []
+
+llvmAuxBuiltinRefsModule :: TCM LLVMModule
+llvmAuxBuiltinRefsModule = do
+  Just true <- getBuiltinName builtinTrue
+  Just false <- getBuiltinName builtinFalse
+  let (idxTrue, kaseTrue) = computeCtorIdent (aIdentFromQName true)
+  let (idxFalse, kaseFalse) = computeCtorIdent (aIdentFromQName false)
+  let makeTrue =
+        aToLlvm $
+        AEntryDirect
+          { entryIdent = AIdentRaw "agda.builtin_refs.make_true"
+          , entryPushArg = False
+          , entryBody = AMkValue $ AValueData {dataIdx = idxTrue, dataCase = kaseTrue, dataArity = 0}
+          }
+  let makeFalse =
+        aToLlvm $
+        AEntryDirect
+          { entryIdent = AIdentRaw "agda.builtin_refs.make_false"
+          , entryPushArg = False
+          , entryBody = AMkValue $ AValueData {dataIdx = idxFalse, dataCase = kaseFalse, dataArity = 0}
+          }
+  return $ LLVMModule (makeTrue ++ makeFalse)

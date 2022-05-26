@@ -134,6 +134,13 @@ refCaseData =
     , refType = LLVMFn {fnRet = i64, fnParams = [typeThunkPtr], fnVariadic = False}
     }
 
+refCaseLitNat :: LLVMRef
+refCaseLitNat =
+  LLVMGlobal
+    { refName = LLVMIdent "agda.eval.case.lit_nat"
+    , refType = LLVMFn {fnRet = i64, fnParams = [typeThunkPtr], fnVariadic = False}
+    }
+
 typeFnCreator :: LLVMType
 typeFnCreator = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeFramePtr], fnVariadic = False}
 

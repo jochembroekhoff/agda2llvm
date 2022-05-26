@@ -33,6 +33,7 @@ library
       Agda.Compiler.LLVM.AbstractToLLVM
       Agda.Compiler.LLVM.APprint
       Agda.Compiler.LLVM.ASyntax
+      Agda.Compiler.LLVM.ASyntaxUtil
       Agda.Compiler.LLVM.Compiler
       Agda.Compiler.LLVM.Options
       Agda.Compiler.LLVM.Pprint

@@ -2,6 +2,7 @@ module Agda.Compiler.LLVM.ToAbstractIntermediate where
 
 import Agda.Compiler.Backend
 import Agda.Compiler.LLVM.ASyntax
+import Agda.Compiler.LLVM.ASyntaxUtil
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
@@ -11,6 +12,7 @@ import Agda.Compiler.Treeless.NormalizeNames (normalizeNames)
 import Agda.Syntax.Common (LensModality(getModality), usableModality)
 import Agda.Syntax.Internal (ConHead(conName))
 import Agda.Syntax.Literal
+import Agda.TypeChecking.Primitive (getBuiltinName)
 import Agda.Utils.Impossible (__IMPOSSIBLE__)
 import Agda.Utils.Lens
 import Agda.Utils.Maybe (liftMaybe)
@@ -28,6 +30,7 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
     | defNoCompilation def || not (usableModality $ getModality def) = return Nothing
   toA def = do
     let qn = defName def
+    liftIO $ putStrLn $ "DEF: " ++ prettyShow qn
     case theDef def of
       Axiom {} -> return Nothing
       GeneralizableVar {} -> return Nothing
@@ -41,7 +44,7 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
         liftIO
           do putStr "FUNCTION: "
              putStrLn $ prettyShow qn
-             print tl
+             -- print tl
         -- TODO: could be replaced with mapM
         case tl of
           Nothing -> return Nothing
@@ -60,7 +63,7 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
       DataOrRecSig {} -> __IMPOSSIBLE__
 
 instance ToAbstractIntermediate QName AIdent where
-  toA qn = return $ AIdent $ prettyShow qn
+  toA = return . aIdentFromQName
 
 ---
 transformFunction :: QName -> TTerm -> ToAM (AIdent, [AEntry])

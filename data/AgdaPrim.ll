@@ -72,6 +72,26 @@ declare
 
 ;;;; START AGDA OUTPUT ;;;;
 
+declare
+%agda.struct.value*
+@agda.builtin_refs.make_true(%agda.struct.frame*, %agda.struct.thunk*)
+declare
+%agda.struct.value*
+@agda.builtin_refs.make_false(%agda.struct.frame*, %agda.struct.thunk*)
+
+define internal
+%agda.struct.value*
+@agdaBool(i1 %bool)
+{
+    br i1 %bool, label %true, label %false
+true:
+    %v_true = call %agda.struct.value* @agda.builtin_refs.make_true(%agda.struct.frame* null, %agda.struct.thunk* null)
+    ret %agda.struct.value* %v_true
+false:
+    %v_false = call %agda.struct.value* @agda.builtin_refs.make_false(%agda.struct.frame* null, %agda.struct.thunk* null)
+    ret %agda.struct.value* %v_false
+}
+
 define
 %agda.struct.value*
 @agda.prim.impl.add(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
@@ -168,16 +188,10 @@ define
     %v_r = load i64, i64* %v_r_ptr
 
     ; compute result
-    %v_result_raw = icmp eq i64 %v_l, %v_r
-    %v_result = zext i1 %v_result_raw to i64
+    %v_result = icmp eq i64 %v_l, %v_r
 
-    ; box the result and return it
-    %v = call %agda.struct.value*() @agda.alloc.value()
-    %v_tag = getelementptr %agda.struct.value, %agda.struct.value* %v, i32 0, i32 0
-    store i64 2, i64* %v_tag
-    %v_lit = bitcast %agda.struct.value* %v to %agda.struct.value.lit_nat*
-    %lit = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_lit, i32 0, i32 1
-    store i64 %v_result, i64* %lit
+    ; box and return the resulting boolean
+    %v = call %agda.struct.value* @agdaBool(i1 %v_result)
     ret %agda.struct.value* %v
 }
 

@@ -16,10 +16,14 @@ import System.Posix.Internals (newFilePath)
 intermediateDirName :: String
 intermediateDirName = ".agda2llvm"
 
+-- | Compute the file path to an auxiliary LLVM IR file, given its unique identifier
+fileIntermediateAux :: String -> TCM FilePath
+fileIntermediateAux aux = (</> intermediateDirName </> "aux" </> aux <.> "ll") <$> compileDir
+
 -- | Compute the file path to an intermediate LLVM IR file, given a module
-fileIntermediate :: ModuleName -> TCM FilePath
-fileIntermediate m = do
-  d <- (</> intermediateDirName) <$> compileDir
+fileIntermediateMod :: ModuleName -> TCM FilePath
+fileIntermediateMod m = do
+  d <- (</> intermediateDirName </> "mod") <$> compileDir
   -- append the full module name onto the directory,
   -- where each module part becomes a directory
   -- (and the last one, implicitly, a file)
@@ -42,14 +46,23 @@ headerPre = ";;;; BEGIN AGDA HEADER ;;;;\n\n"
 
 headerPost = "\n;;;; END AGDA HEADER ;;;;\n\n"
 
-writeIntermediate :: ModuleName -> LLVMModule -> TCM FilePath
-writeIntermediate modName modContent = do
-  p <- fileIntermediate modName
-  let pretty = llvmPretty modContent
-  liftIO
-    do createDirectoryIfMissing True $ takeDirectory p
-       header <- getRteHeader
-       writeFile p (headerPre ++ header ++ headerPost ++ pretty)
+writeIntermediate :: FilePath -> LLVMModule -> IO ()
+writeIntermediate p content = do
+  createDirectoryIfMissing True $ takeDirectory p
+  header <- getRteHeader
+  let pretty = llvmPretty content
+  writeFile p (headerPre ++ header ++ headerPost ++ pretty)
+
+writeIntermediateAux :: String -> LLVMModule -> TCM FilePath
+writeIntermediateAux auxName auxContent = do
+  p <- fileIntermediateAux auxName
+  liftIO $ writeIntermediate p auxContent
+  return p
+
+writeIntermediateModule :: ModuleName -> LLVMModule -> TCM FilePath
+writeIntermediateModule modName modContent = do
+  p <- fileIntermediateMod modName
+  liftIO $ writeIntermediate p modContent
   return p
 
 callLLVM :: LLVMOptions -> IsMain -> [FilePath] -> TCM ()

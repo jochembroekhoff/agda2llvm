@@ -209,13 +209,14 @@ instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
             { callRef = refRecordGet
             , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt i64 subj]
             }
-          -- call runtime to obtain identification info (data id)
-        , llvmRecord "data_id" $
-          LLVMCall {callRef = refCaseData, callArgs = [LLVMRef $ LLVMLocal (llvmIdent "case_subj_thunk") typeThunkPtr]}
+          -- call runtime to obtain the underlying value
+        , llvmRecord "lit_nat_value" $
+          LLVMCall
+            {callRef = refCaseLitNat, callArgs = [LLVMRef $ LLVMLocal (llvmIdent "case_subj_thunk") typeThunkPtr]}
           -- switch on the data id
         , llvmDiscard $
           LLVMSwitch
-            { switchSubj = LLVMRef $ LLVMLocal (llvmIdent "data_id") i64
+            { switchSubj = LLVMRef $ LLVMLocal (llvmIdent "lit_nat_value") i64
             , switchDefault = fallbackEntry
             , switchBranches = switchEntries
             }
