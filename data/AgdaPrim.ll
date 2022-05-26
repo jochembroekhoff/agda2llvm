@@ -180,3 +180,40 @@ define
     store i64 %v_result, i64* %lit
     ret %agda.struct.value* %v
 }
+
+; primNatPlus =alias= add
+define
+%agda.struct.value*
+@agda.prim.impl.primNatPlus(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+{
+    %res = call %agda.struct.value* @agda.prim.impl.add(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+    ret %agda.struct.value* %res
+}
+
+; primNatPlus =alias= sub
+define
+%agda.struct.value*
+@agda.prim.impl.primNatMinus(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+{
+    ; TODO: replace with actual 'monus' behavior
+    %res = call %agda.struct.value* @agda.prim.impl.sub(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+    ret %agda.struct.value* %res
+}
+
+; primNatTimes =alias= mul
+define
+%agda.struct.value*
+@agda.prim.impl.primNatTimes(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+{
+    %res = call %agda.struct.value* @agda.prim.impl.mul(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+    ret %agda.struct.value* %res
+}
+
+; primNatEquality =alias= eqi
+define
+%agda.struct.value*
+@agda.prim.impl.primNatEquality(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+{
+    %res = call %agda.struct.value* @agda.prim.impl.eqi(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+    ret %agda.struct.value* %res
+}

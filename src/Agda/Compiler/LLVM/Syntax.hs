@@ -2,6 +2,7 @@ module Agda.Compiler.LLVM.Syntax where
 
 newtype LLVMIdent =
   LLVMIdent String
+  deriving (Eq, Ord)
 
 instance Show LLVMIdent where
   show (LLVMIdent ident) = ident
@@ -10,7 +11,7 @@ data LLVMModule =
   LLVMModule
     { entries :: [LLVMEntry]
     }
-  deriving (Show)
+  deriving (Eq)
 
 data LLVMEntry
   = LLVMFnDecl
@@ -20,7 +21,7 @@ data LLVMEntry
       { fnSign :: LLVMFnSign
       , body :: [LLVMBlock]
       }
-  deriving (Show)
+  deriving (Eq)
 
 data LLVMFnSign =
   LLVMFnSign
@@ -28,7 +29,7 @@ data LLVMFnSign =
     , fnType :: LLVMType
     , fnArgs :: [(LLVMType, LLVMIdent)]
     }
-  deriving (Show)
+  deriving (Eq)
 
 data LLVMType
   = LLVMVoid
@@ -55,14 +56,14 @@ data LLVMType
   | LLVMTRef
       { typeIdent :: LLVMIdent
       }
-  deriving (Show)
+  deriving (Eq)
 
 data LLVMBlock =
   LLVMBlock
     { blockLabel :: LLVMIdent
     , blockInstructions :: [(Maybe LLVMIdent, LLVMInstruction)]
     }
-  deriving (Show)
+  deriving (Eq)
 
 data LLVMInstruction
   = LLVMAlloca
@@ -105,7 +106,7 @@ data LLVMInstruction
       { zextFrom :: LLVMValue
       , zextTo :: LLVMType
       }
-  deriving (Show)
+  deriving (Eq)
 
 data LLVMValue
   = LLVMRef
@@ -114,7 +115,7 @@ data LLVMValue
   | LLVMLit
       { valueLit :: LLVMLit
       }
-  deriving (Show)
+  deriving (Eq)
 
 data LLVMRef
   = LLVMLocal
@@ -125,7 +126,7 @@ data LLVMRef
       { refName :: LLVMIdent
       , refType :: LLVMType
       }
-  deriving (Show)
+  deriving (Eq)
 
 data LLVMLit
   = LLVMBool
@@ -141,4 +142,4 @@ data LLVMLit
   | LLVMNull
       { litType :: LLVMType
       }
-  deriving (Show)
+  deriving (Eq)

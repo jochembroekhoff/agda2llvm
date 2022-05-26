@@ -30,6 +30,7 @@ FROM_ANNO = [
     ("primNatPlus", 2),
     ("primNatMinus", 2),
     ("primNatTimes", 2),
+    ("primNatEquality", 2),
 ]
 
 PRIMITIVES = FROM_TPRIM + FROM_ANNO
@@ -38,7 +39,6 @@ RUNTIME_ERROR_PRIMITIVES = [
     "primLevelZero",
     "primLevelSuc",
     "primLevelMax",
-    "primNatEquality",
     "primNatLess",
     "primNatDivSucAux",
     "primNatModSucAux",
