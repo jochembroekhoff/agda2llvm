@@ -175,6 +175,50 @@ define
 
 define
 %agda.struct.value*
+@agda.prim.impl.geq(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+{
+    ; get left value
+    %v_l_lit_nat = bitcast %agda.struct.value* %v_l_raw to %agda.struct.value.lit_nat*
+    %v_l_ptr = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_l_lit_nat, i32 0, i32 1
+    %v_l = load i64, i64* %v_l_ptr
+
+    ; get right value
+    %v_r_lit_nat = bitcast %agda.struct.value* %v_r_raw to %agda.struct.value.lit_nat*
+    %v_r_ptr = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_r_lit_nat, i32 0, i32 1
+    %v_r = load i64, i64* %v_r_ptr
+
+    ; compute result
+    %v_result = icmp uge i64 %v_l, %v_r
+
+    ; box and return the resulting boolean
+    %v = call %agda.struct.value* @agdaBool(i1 %v_result)
+    ret %agda.struct.value* %v
+}
+
+define
+%agda.struct.value*
+@agda.prim.impl.lt(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+{
+    ; get left value
+    %v_l_lit_nat = bitcast %agda.struct.value* %v_l_raw to %agda.struct.value.lit_nat*
+    %v_l_ptr = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_l_lit_nat, i32 0, i32 1
+    %v_l = load i64, i64* %v_l_ptr
+
+    ; get right value
+    %v_r_lit_nat = bitcast %agda.struct.value* %v_r_raw to %agda.struct.value.lit_nat*
+    %v_r_ptr = getelementptr %agda.struct.value.lit_nat, %agda.struct.value.lit_nat* %v_r_lit_nat, i32 0, i32 1
+    %v_r = load i64, i64* %v_r_ptr
+
+    ; compute result
+    %v_result = icmp ult i64 %v_l, %v_r
+
+    ; box and return the resulting boolean
+    %v = call %agda.struct.value* @agdaBool(i1 %v_result)
+    ret %agda.struct.value* %v
+}
+
+define
+%agda.struct.value*
 @agda.prim.impl.eqi(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
 {
     ; get left value
@@ -229,5 +273,14 @@ define
 @agda.prim.impl.primNatEquality(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
 {
     %res = call %agda.struct.value* @agda.prim.impl.eqi(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+    ret %agda.struct.value* %res
+}
+
+; primNatLess =alias= lt
+define
+%agda.struct.value*
+@agda.prim.impl.primNatLess(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
+{
+    %res = call %agda.struct.value* @agda.prim.impl.lt(%agda.struct.value* %v_l_raw, %agda.struct.value* %v_r_raw)
     ret %agda.struct.value* %res
 }

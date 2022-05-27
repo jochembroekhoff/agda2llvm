@@ -12,8 +12,8 @@ FROM_TPRIM = [
     ("mul", 2),
     # ("quot", 2),
     # ("rem", 2),
-    # ("geq", 2),
-    # ("lt", 2),
+    ("geq", 2),
+    ("lt", 2),
     # ("lt64", 2),
     ("eqi", 2),
     # ("eqf", 2),
@@ -31,6 +31,7 @@ FROM_ANNO = [
     ("primNatMinus", 2),
     ("primNatTimes", 2),
     ("primNatEquality", 2),
+    ("primNatLess", 2),
 ]
 
 PRIMITIVES = FROM_TPRIM + FROM_ANNO
@@ -39,7 +40,6 @@ RUNTIME_ERROR_PRIMITIVES = [
     "primLevelZero",
     "primLevelSuc",
     "primLevelMax",
-    "primNatLess",
     "primNatDivSucAux",
     "primNatModSucAux",
 ]
