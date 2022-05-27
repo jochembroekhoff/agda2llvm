@@ -80,6 +80,10 @@ transformPrimitive qn primName = do
       bodyEntry = AEntryAlias {aliasIdent = qn', aliasOf = primIdent}
   return (qn', [bodyEntry])
 
+desugarLet :: TTerm -> TTerm
+desugarLet (TLet value body) = TApp (TLam body) [value]
+desugarLet _ = __IMPOSSIBLE__
+
 instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
   toA (qn, TApp subj args) = do
     (subjHolder, subjEntries) <- toArg (qn, subj)
@@ -96,7 +100,7 @@ instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
       ( AMkValue AValueFn {fnIdent = innerName}
       , innerEntries ++ [AEntryDirect {entryIdent = innerName, entryPushArg = True, entryBody = innerBody}])
   toA (_, TLit lit) = return (AMkValue $ AValueLit lit, [])
-  toA (qn, TLet value body) = toA (qn, TApp (TLam body) [value])
+  toA (qn, let_@TLet {}) = toA (qn, desugarLet let_)
   toA (qn, TCase idx (CaseInfo _ ct) fallback alts) = do
     (fallbackBody, fallbackEntries) <- toA (qn, fallback)
     case ct of
@@ -161,6 +165,7 @@ toArg info@(qn, TApp {}) = tmpLift info "appl"
 toArg info@(qn, TLam {}) = tmpLift info "lam"
 toArg info@(qn, TLit {}) = tmpLift info "lit"
 toArg (_, TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
+toArg (qn, let_@TLet {}) = toArg (qn, desugarLet let_)
 toArg info@(qn, TCase {}) = tmpLift info "case"
 toArg (_, TErased) = return (AErased, [])
 toArg (qn, TCoerce tt) = toArg (qn, tt)
