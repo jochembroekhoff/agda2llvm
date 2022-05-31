@@ -55,6 +55,7 @@ library
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
   build-depends:
       Agda >=2.6.2.1 && <2.6.3
@@ -84,6 +85,7 @@ executable agda2llvm-exe
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
@@ -116,6 +118,7 @@ test-suite agda2llvm-test
       LambdaCase
       MultiParamTypeClasses
       ScopedTypeVariables
+      StandaloneDeriving
       TupleSections
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:

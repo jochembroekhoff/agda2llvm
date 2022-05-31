@@ -8,7 +8,7 @@ import Agda.Compiler.Common (compileDir)
 import Agda.Compiler.LLVM.ASyntax
 import Agda.Compiler.LLVM.ASyntaxUtil (aIdentFromQName)
 import Agda.Compiler.LLVM.AbstractToLLVM (AToLlvm(aToLlvm))
-import Agda.Compiler.LLVM.Options (LLVMOptions, defaultLLVMOptions)
+import Agda.Compiler.LLVM.Options (LLVMOptions, defaultLLVMOptions, optionFlagClangDebug, optionFlagEvaluationStrategy)
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
@@ -30,7 +30,7 @@ import Agda.Compiler.LLVM.Wiring
   , writeIntermediateAux
   , writeIntermediateModule
   )
-import Agda.Interaction.Options (OptDescr)
+import Agda.Interaction.Options (ArgDescr(NoArg), OptDescr(Option))
 import Agda.TypeChecking.Primitive (getBuiltinName)
 import Agda.Utils.Pretty (prettyShow)
 import Agda.Utils.Tuple (mapFstM)
@@ -68,7 +68,20 @@ llvmBackend' =
 
 --- CLI flags ---
 llvmCommandLineFlags :: [OptDescr (Flag LLVMOptions)]
-llvmCommandLineFlags = []
+llvmCommandLineFlags =
+  [ Option
+      []
+      ["lazy-evaluation"]
+      (NoArg $ optionFlagEvaluationStrategy LazyEvaluation)
+      "Use thunks at runtime to support lazy operations (default)"
+  , Option
+      []
+      ["strict-evaluation"]
+      (NoArg $ optionFlagEvaluationStrategy EagerEvaluation)
+      "Evaluate all arguments eagerly"
+  , Option [] ["clang-debug"] (NoArg $ optionFlagClangDebug True) "Call Clang with the debug configuration (default)"
+  , Option [] ["clang-release"] (NoArg $ optionFlagClangDebug False) "Call Clang with the release profile, includes LTO"
+  ]
 
 --- Envs ---
 data LLVMEnv =

@@ -73,4 +73,5 @@ default-extensions:
   - LambdaCase
   - MultiParamTypeClasses
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TupleSections

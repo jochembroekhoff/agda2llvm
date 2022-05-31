@@ -3,7 +3,7 @@ module Agda.Compiler.LLVM.Wiring where
 import Agda.Compiler.Backend (IsMain(..), ModuleName(mnameToList), TCM)
 import Agda.Compiler.CallCompiler (callCompiler)
 import Agda.Compiler.Common (compileDir)
-import Agda.Compiler.LLVM.Options (LLVMOptions)
+import Agda.Compiler.LLVM.Options (LLVMOptions(llvmClangDebug))
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.Syntax
 import Agda.Utils.Pretty (prettyShow)
@@ -70,11 +70,12 @@ callLLVM opt isMain intermediates = do
   o <- fileOutput isMain
   let libs = ["gc"]
       libs' = map ("-l" ++) libs
-  --let optimizeFlags = ["-O3", "-flto"]
-  -- TODO: only enable these in debug mode (add flag)
-  let optimizeFlags = ["-g3", "-ggdb"]
+  let clangConfigFlags =
+        if llvmClangDebug opt
+          then ["-g3", "-ggdb"]
+          else ["-O3", "-flto"]
   rteFiles <- liftIO $ getRteFiles isMain
-  let args = intermediates ++ rteFiles ++ ["-o", o] ++ libs' ++ optimizeFlags ++ ["-shared" | isMain == NotMain]
+  let args = intermediates ++ rteFiles ++ ["-o", o] ++ libs' ++ clangConfigFlags ++ ["-shared" | isMain == NotMain]
   -- TODO: allow path to clang to be reconfigured
   callCompiler True "clang" args Nothing
 
