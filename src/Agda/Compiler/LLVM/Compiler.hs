@@ -167,22 +167,26 @@ llvmAuxMetaModule = return $ LLVMModule []
 
 llvmAuxBuiltinRefsModule :: TCM LLVMModule
 llvmAuxBuiltinRefsModule = do
-  Just true <- getBuiltinName builtinTrue
-  Just false <- getBuiltinName builtinFalse
-  let (idxTrue, kaseTrue) = computeCtorIdent (aIdentFromQName true)
-  let (idxFalse, kaseFalse) = computeCtorIdent (aIdentFromQName false)
-  let makeTrue =
-        aToLlvm $
-        AEntryDirect
-          { entryIdent = AIdentRaw "agda.builtin_refs.make_true"
-          , entryPushArg = False
-          , entryBody = AMkValue $ AValueData {dataIdx = idxTrue, dataCase = kaseTrue, dataArity = 0}
-          }
-  let makeFalse =
-        aToLlvm $
-        AEntryDirect
-          { entryIdent = AIdentRaw "agda.builtin_refs.make_false"
-          , entryPushArg = False
-          , entryBody = AMkValue $ AValueData {dataIdx = idxFalse, dataCase = kaseFalse, dataArity = 0}
-          }
-  return $ LLVMModule (makeTrue ++ makeFalse)
+  true <- getBuiltinName builtinTrue
+  false <- getBuiltinName builtinFalse
+  let true' = mkBuiltin "true" true
+  let false' = mkBuiltin "false" false
+  return $ LLVMModule (true' ++ false')
+  where
+    mkBuiltin :: String -> Maybe QName -> [LLVMEntry]
+    mkBuiltin n Nothing =
+      aToLlvm $
+      AEntryDirect
+        { entryIdent = AIdentRaw $ "agda.builtin_refs.make_" ++ n
+        , entryPushArg = False
+        , entryBody = AError "builtin not bound, but still used"
+        }
+    mkBuiltin n (Just qn) =
+      aToLlvm $
+      AEntryDirect
+        { entryIdent = AIdentRaw $ "agda.builtin_refs.make_" ++ n
+        , entryPushArg = False
+        , entryBody = AMkValue $ AValueData {dataIdx = idx, dataCase = kase, dataArity = 0}
+        }
+      where
+        (idx, kase) = computeCtorIdent $ aIdentFromQName qn
