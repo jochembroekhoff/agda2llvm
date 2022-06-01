@@ -45,7 +45,7 @@ declare void @llvm.va_end(i8*)
 
 ;; Agda allocators
 
-@agda_alloc_managed = alias i8*(i64), i8*(i64)* @GC_malloc
+@agda_alloc_managed = internal alias i8*(i64), i8*(i64)* @GC_malloc
 
 define
 %agda.struct.value*
@@ -509,7 +509,7 @@ case_lit_w64:
     %v_content_w64_ptr = getelementptr %agda.struct.value.lit_w64, %agda.struct.value.lit_w64* %v_lit_w64, i32 0, i32 1
     %v_content_w64 = load i64, i64* %v_content_w64_ptr
     call void (i8*, ...) @printf(i8* getelementptr ([4 x i8], [4 x i8]* @str.fmt.zu, i32 0, i32 0)
-    , i64 %v_content_nat
+    , i64 %v_content_w64
     )
     ret void
 }
