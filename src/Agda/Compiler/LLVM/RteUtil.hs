@@ -146,7 +146,8 @@ typeFnCreator = LLVMFn {fnRet = typeThunkPtr, fnParams = [typeFramePtr], fnVaria
 
 mkCreatorFnSign :: LLVMIdent -> LLVMFnSign
 mkCreatorFnSign ident =
-  LLVMFnSign {fnName = ident, fnType = typeThunkPtr, fnArgs = [(typeFramePtr, llvmIdent "record")]}
+  LLVMFnSign
+    {fnName = ident, fnType = typeThunkPtr, fnArgs = [(typeFramePtr, llvmIdent "record")], fnArgsVariadic = False}
 
 typeFnEvaluator :: LLVMType
 typeFnEvaluator = LLVMFn {fnRet = typeValuePtr, fnParams = [typeFramePtr, typeThunkPtr], fnVariadic = False}

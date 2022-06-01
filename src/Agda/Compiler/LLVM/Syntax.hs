@@ -28,6 +28,7 @@ data LLVMFnSign =
     { fnName :: LLVMIdent
     , fnType :: LLVMType
     , fnArgs :: [(LLVMType, LLVMIdent)]
+    , fnArgsVariadic :: Bool
     }
   deriving (Eq)
 

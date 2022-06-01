@@ -19,7 +19,8 @@ llvmIdent = LLVMIdent . sanitize . ("agda2llvm." ++)
         cs' = sanitize' cs
 
 llvmMainSignature :: LLVMFnSign
-llvmMainSignature = LLVMFnSign {fnName = LLVMIdent "main", fnType = LLVMSizedInt 64, fnArgs = []}
+llvmMainSignature =
+  LLVMFnSign {fnName = LLVMIdent "main", fnType = LLVMSizedInt 64, fnArgs = [], fnArgsVariadic = False}
 
 llvmRecord :: String -> LLVMInstruction -> (Maybe LLVMIdent, LLVMInstruction)
 llvmRecord ident = (Just $ llvmIdent ident, )

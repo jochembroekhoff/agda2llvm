@@ -136,6 +136,8 @@ define
     ret %agda.struct.value* %v
 }
 
+@.str.TypeIncorrect = private constant [35 x i8] c"AGDA: cannot apply to non-fn data\0A\00"
+
 define
 internal
 %agda.struct.value*
@@ -157,8 +159,12 @@ TypeCorrect:
     ret %agda.struct.value* %eval_res
 
 TypeIncorrect:
+    call void (i8*, ...) @printf(i8* getelementptr ([35 x i8], [35 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
     ret %agda.struct.value* null
 }
+
+@str.appln_loop = private constant [19 x i8] c"AGDA: appl.n iter\0A\00"
+@str.appln_end = private constant [18 x i8] c"AGDA: appl.n end\0A\00"
 
 define
 %agda.struct.value*
@@ -187,6 +193,8 @@ loopBegin:
     br i1 %arg_null, label %end, label %loopBody
 
 loopBody:
+    ; debug print
+    call void(i8*, ...) @printf(i8* getelementptr ([19 x i8], [19 x i8]* @str.appln_loop, i32 0, i32 0))
     ; apply the current arg to the current function
     %v_ptr0 = load %agda.struct.value*, %agda.struct.value** %v
     %v_next = call %agda.struct.value* @agda.eval.appl.do_checked(%agda.struct.value* %v_ptr0, %agda.struct.thunk* %arg)
@@ -200,6 +208,8 @@ loopPrepNext:
     br label %loopBegin
 
 end:
+    ; debug print
+    call void(i8*, ...) @printf(i8* getelementptr ([18 x i8], [18 x i8]* @str.appln_end, i32 0, i32 0))
     ; finalize the varargs and return the last value
     call void @llvm.va_end(i8* %ap_raw)
     %v_ptr1 = load %agda.struct.value*, %agda.struct.value** %v
@@ -239,6 +249,7 @@ TypeCorrect:
     ret i64 %case_id
 
 TypeIncorrect:
+    call void (i8*, ...) @printf(i8* getelementptr ([35 x i8], [35 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
     ret i64 0
 }
 
@@ -263,6 +274,7 @@ TypeCorrect:
     ret i64 %v_content_nat
 
 TypeIncorrect:
+    call void (i8*, ...) @printf(i8* getelementptr ([35 x i8], [35 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
     ret i64 0
 }
 
@@ -300,6 +312,7 @@ end:
 
 ;; Agda stack
 
+@str.record_push_replace = private constant [51 x i8] c"AGDA: record.push_replace: curr=%p elem=%p new=%p\0A\00"
 
 define
 void
@@ -309,16 +322,31 @@ void
     %curr_deref = load %agda.struct.frame*, %agda.struct.frame** %curr
     %frame = call %agda.struct.frame* @agda.record.internal.alloc(%agda.struct.thunk* %elem, %agda.struct.frame* %curr_deref)
 
+    ; debug print
+    call void(i8*, ...) @printf(i8* getelementptr ([51 x i8], [51 x i8]* @str.record_push_replace, i32 0, i32 0)
+        , %agda.struct.frame* %curr_deref
+        , %agda.struct.thunk* %elem
+        , %agda.struct.frame* %frame
+        )
+
     ; replace callee's pointer
     store %agda.struct.frame* %frame, %agda.struct.frame** %curr
 
     ret void
 }
 
+@str.record_get_dbg = private constant [27 x i8] c"AGDA: record.get: %p[%zu]\0A\00"
+@str.record_get_dbg_fin = private constant [26 x i8] c"AGDA: record.get: res=%p\0A\00"
+
 define
 %agda.struct.thunk*
 @agda.record.get(%agda.struct.frame* %curr, i64 %idx)
 {
+    ; debug print
+    call void(i8*, ...) @printf(i8* getelementptr ([27 x i8], [27 x i8]* @str.record_get_dbg, i32 0, i32 0)
+        , %agda.struct.frame* %curr
+        , i64 %idx
+        )
     ; make sure %curr isn't null
     %curr_null = icmp eq %agda.struct.frame* null, %curr
     br i1 %curr_null, label %null, label %ok
@@ -341,6 +369,10 @@ next:
 fin:
     %elem_ptr = getelementptr %agda.struct.frame, %agda.struct.frame* %curr, i32 0, i32 0
     %elem = load %agda.struct.thunk*, %agda.struct.thunk** %elem_ptr
+    ; debug print
+    call void(i8*, ...) @printf(i8* getelementptr ([26 x i8], [26 x i8]* @str.record_get_dbg_fin, i32 0, i32 0)
+        , %agda.struct.thunk* %elem
+        )
     ret %agda.struct.thunk* %elem
 }
 
@@ -417,6 +449,7 @@ TypeCorrect:
     ret %agda.struct.frame* %new_frame
 
 TypeIncorrect:
+    call void (i8*, ...) @printf(i8* getelementptr ([35 x i8], [35 x i8]* @.str.TypeIncorrect, i32 0, i32 0))
     ret %agda.struct.frame* null
 }
 

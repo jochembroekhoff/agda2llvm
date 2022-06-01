@@ -25,10 +25,11 @@ instance LLVMPretty LLVMEntry where
       body' = unlines $ map llvmPretty body
 
 instance LLVMPretty LLVMFnSign where
-  llvmPretty (LLVMFnSign fnName fnType fnArgs) =
-    llvmPretty fnType ++ "\n@" ++ llvmPretty fnName ++ "(" ++ fnArgs' ++ ")"
+  llvmPretty (LLVMFnSign fnName fnType fnArgs fnArgsVariadic) =
+    llvmPretty fnType ++ "\n@" ++ llvmPretty fnName ++ "(" ++ fnArgsWithVariadic ++ ")"
     where
-      fnArgs' = intercalate ", " (map (\(t, k) -> llvmPretty t ++ " %" ++ llvmPretty k) fnArgs)
+      fnArgs' = map (\(t, k) -> llvmPretty t ++ " %" ++ llvmPretty k) fnArgs
+      fnArgsWithVariadic = intercalate ", " (fnArgs' ++ ["..." | fnArgsVariadic])
 
 instance LLVMPretty LLVMType where
   llvmPretty LLVMVoid = "void"

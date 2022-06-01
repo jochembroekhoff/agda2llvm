@@ -18,6 +18,7 @@ extra-source-files:
     CHANGELOG.md
 data-files:
     Agda.ll
+    Agda-verbose.ll
     AgdaPrim.ll
     header.ll
     gen/AgdaPrimWrap.ll

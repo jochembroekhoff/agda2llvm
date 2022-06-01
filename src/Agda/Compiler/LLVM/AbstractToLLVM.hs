@@ -231,6 +231,7 @@ bodyTemplateBasic ident push beginInstructions blocks =
           { fnName = aToLlvm ident
           , fnType = typeValuePtr
           , fnArgs = [(typeFramePtr, llvmIdent recordParamName), (typeThunkPtr, llvmIdent "arg")]
+          , fnArgsVariadic = False
           }
     , body = blockBegin : blocks
     }

@@ -3,7 +3,7 @@ module Agda.Compiler.LLVM.Wiring where
 import Agda.Compiler.Backend (IsMain(..), ModuleName(mnameToList), TCM)
 import Agda.Compiler.CallCompiler (callCompiler)
 import Agda.Compiler.Common (compileDir)
-import Agda.Compiler.LLVM.Options (LLVMOptions(llvmClangDebug))
+import Agda.Compiler.LLVM.Options (LLVMOptions(llvmClangDebug, llvmVerboseRuntime))
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.Syntax
 import Agda.Utils.Pretty (prettyShow)
@@ -74,15 +74,20 @@ callLLVM opt isMain intermediates = do
         if llvmClangDebug opt
           then ["-g3", "-ggdb"]
           else ["-O3", "-flto"]
-  rteFiles <- liftIO $ getRteFiles isMain
+  rteFiles <- liftIO $ getRteFiles opt isMain
   let args = intermediates ++ rteFiles ++ ["-o", o] ++ libs' ++ clangConfigFlags ++ ["-shared" | isMain == NotMain]
   -- TODO: allow path to clang to be reconfigured
   callCompiler True "clang" args Nothing
 
-getRteFiles :: IsMain -> IO [FilePath]
-getRteFiles isMain = do
-  let files = ["Agda.ll", "AgdaPrim.ll", "gen" </> "AgdaPrimWrap.ll"]
+getRteFiles :: LLVMOptions -> IsMain -> IO [FilePath]
+getRteFiles opt isMain = do
+  let files = [mainAgdaLL, "AgdaPrim.ll", "gen" </> "AgdaPrimWrap.ll"]
   traverse getDataFileName files
+  where
+    mainAgdaLL =
+      if llvmVerboseRuntime opt
+        then "Agda-verbose.ll"
+        else "Agda.ll"
 
 getRteHeader :: IO String
 getRteHeader = do
