@@ -151,7 +151,7 @@ llvmThunkImports entries = map declare (Set.toList implicitDeclarations)
     findDecls _ = []
     declare :: LLVMIdent -> LLVMEntry
     declare ident =
-      LLVMFnDecl $
+      LLVMFnDecl [] $
       LLVMFnSign
         {fnName = ident, fnType = typeThunkPtr, fnArgs = [(typeFramePtr, llvmIdent "record")], fnArgsVariadic = False}
 

@@ -21,13 +21,14 @@ instance AToLlvm AIdent LLVMIdent where
 instance AToLlvm (EvaluationStrategy, AEntry) [LLVMEntry]
   -- TODO: respect the private flag (should correspond to LLVM private modifier)
                                                                                  where
-  aToLlvm (evalStrat, AEntryThunk ident _ thunk) = thunkConstructor : thunkEvaluator
+  aToLlvm (evalStrat, AEntryThunk ident private thunk) = thunkConstructor : thunkEvaluator
     where
-      (thunkConstructor, thunkEvaluator) = aToLlvm (ident, thunk, evalStrat)
-  aToLlvm (_, AEntryDirect ident push body) = aToLlvm (ident, push, body)
+      (thunkConstructor, thunkEvaluator) = aToLlvm (ident, private, thunk, evalStrat)
+  aToLlvm (_, AEntryDirect ident push body) = aToLlvm ((ident, False, push), body)
   aToLlvm (_, AEntryMain mainRef) =
     [ LLVMFnDefn
-        { fnSign = llvmMainSignature
+        { fnModifiers = []
+        , fnSign = llvmMainSignature
         , body =
             [ LLVMBlock
                 (llvmIdent "begin")
@@ -41,7 +42,8 @@ instance AToLlvm (EvaluationStrategy, AEntry) [LLVMEntry]
     ]
   aToLlvm (_, AEntryAlias ident alias) =
     [ LLVMFnDefn
-        { fnSign = mkCreatorFnSign $ aToLlvm ident
+        { fnModifiers = []
+        , fnSign = mkCreatorFnSign $ aToLlvm ident
         , body =
             [ LLVMBlock
                 (llvmIdent "begin")
@@ -56,53 +58,79 @@ instance AToLlvm (EvaluationStrategy, AEntry) [LLVMEntry]
         }
     ]
 
-instance AToLlvm (AIdent, AThunk, EvaluationStrategy) (LLVMEntry, [LLVMEntry]) where
-  aToLlvm (ident, AThunkDelay body, evalStrat) = (thunkConstructor, thunkEvaluator)
+instance AToLlvm (AIdent, Bool, AThunk, EvaluationStrategy) (LLVMEntry, [LLVMEntry]) where
+  aToLlvm (ident, private, AThunkDelay body, LazyEvaluation) = (thunkConstructor, thunkEvaluator)
     where
       bodyIdent = ident <> AIdent "--body"
-      thunkEvaluator = aToLlvm (bodyIdent, False, body)
+      thunkEvaluator = aToLlvm ((bodyIdent, True, False), body)
       thunkConstructor =
-        thunkCreatorTemplate ident False
+        thunkCreatorTemplate
+          ident
+          private
         -- configure non-evaluated setting
-         $
-        [ llvmRecord "thunk_eval" $
-          LLVMBitcast {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkEvalPtr}
+          False
+          [ llvmRecord "thunk_eval" $
+            LLVMBitcast {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkEvalPtr}
         -- store function pointer
-        , llvmRecord "thunk_eval_ptr" $
-          LLVMGetElementPtr
-            { elemBase = typeThunkEval
-            , elemSrc = LLVMLocal (llvmIdent "thunk_eval") typeThunkEvalPtr
-            , elemIndices = [0, 1, 0]
-            }
-        , llvmDiscard $
-          LLVMStore
-            { storeSrc = LLVMRef $ LLVMGlobal (aToLlvm bodyIdent) (LLVMPtr typeFnEvaluator)
-            , storeDest = LLVMLocal (llvmIdent "thunk_eval_ptr") (LLVMPtr $ LLVMPtr typeFnEvaluator)
-            }
+          , llvmRecord "thunk_eval_ptr" $
+            LLVMGetElementPtr
+              { elemBase = typeThunkEval
+              , elemSrc = LLVMLocal (llvmIdent "thunk_eval") typeThunkEvalPtr
+              , elemIndices = [0, 1, 0]
+              }
+          , llvmDiscard $
+            LLVMStore
+              { storeSrc = LLVMRef $ LLVMGlobal (aToLlvm bodyIdent) (LLVMPtr typeFnEvaluator)
+              , storeDest = LLVMLocal (llvmIdent "thunk_eval_ptr") (LLVMPtr $ LLVMPtr typeFnEvaluator)
+              }
         -- store function record
-        , llvmRecord "thunk_eval_record" $
-          LLVMGetElementPtr
-            { elemBase = typeThunkEval
-            , elemSrc = LLVMLocal (llvmIdent "thunk_eval") typeThunkEvalPtr
-            , elemIndices = [0, 1, 1]
-            }
-        , llvmDiscard $
-          LLVMStore
-            { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
-            , storeDest = LLVMLocal (llvmIdent "thunk_eval_record") (LLVMPtr typeFramePtr)
-            }
-        -- evaluate if in strict mode (discarding the result)
-        ] ++
-        [ llvmDiscard $
-        LLVMCall {callRef = refForce, callArgs = [LLVMRef $ LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr]}
-        | evalStrat == EagerEvaluation
-        ]
-  aToLlvm (ident, AThunkValue value, _) = (thunkConstructor, [])
+          , llvmRecord "thunk_eval_record" $
+            LLVMGetElementPtr
+              { elemBase = typeThunkEval
+              , elemSrc = LLVMLocal (llvmIdent "thunk_eval") typeThunkEvalPtr
+              , elemIndices = [0, 1, 1]
+              }
+          , llvmDiscard $
+            LLVMStore
+              { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
+              , storeDest = LLVMLocal (llvmIdent "thunk_eval_record") (LLVMPtr typeFramePtr)
+              }
+          ]
+  aToLlvm (ident, private, AThunkDelay body, EagerEvaluation) = (thunkConstructor, thunkEvaluator)
+    where
+      bodyIdent = ident <> AIdent "--body-strict"
+      thunkEvaluator = aToLlvm ((bodyIdent, True, False), body)
+      thunkConstructor =
+        thunkCreatorTemplate
+          ident
+          private
+          True
+          [ llvmRecord "thunk_value" $
+            LLVMBitcast {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkValuePtr}
+          , llvmRecord "thunk_value_ptr" $
+            LLVMGetElementPtr
+              { elemBase = typeThunkValue
+              , elemSrc = LLVMLocal (llvmIdent "thunk_value") typeThunkValuePtr
+              , elemIndices = [0, 1]
+              }
+          , llvmRecord "v" $
+            LLVMCall
+              { callRef = LLVMGlobal (aToLlvm bodyIdent) typeFnEvaluator
+              , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMNull typeThunkPtr]
+              }
+          , llvmDiscard $
+            LLVMStore
+              { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "v") typeValuePtr
+              , storeDest = LLVMLocal (llvmIdent "thunk_value_ptr") (LLVMPtr typeValuePtr)
+              }
+          ]
+  aToLlvm (ident, private, AThunkValue value, _) = (thunkConstructor, [])
     where
       valueCreateInstructions = aToLlvm value
       thunkConstructor =
         thunkCreatorTemplate
           ident
+          private
           True
           (valueCreateInstructions ++
         -- configure already-evaluated setting
@@ -122,10 +150,11 @@ instance AToLlvm (AIdent, AThunk, EvaluationStrategy) (LLVMEntry, [LLVMEntry]) w
                }
            ])
 
-thunkCreatorTemplate :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
-thunkCreatorTemplate ident isEval instructions =
+thunkCreatorTemplate :: AIdent -> Bool -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
+thunkCreatorTemplate ident isPrivate isEval instructions =
   LLVMFnDefn
-    { fnSign = mkCreatorFnSign $ aToLlvm ident
+    { fnModifiers = [LLVMPrivate | isPrivate]
+    , fnSign = mkCreatorFnSign $ aToLlvm ident
     , body = [LLVMBlock (llvmIdent "begin") (constructThunkHolder ++ instructions ++ [returnThunkHolder])]
     }
   where
@@ -146,14 +175,13 @@ thunkCreatorTemplate ident isEval instructions =
       ]
     returnThunkHolder = llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr
 
-instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
-  aToLlvm (ident, push, AMkValue value) = pure $ bodyTemplate ident push (aToLlvm value)
+instance AToLlvm ((AIdent, Bool, Bool), ABody) [LLVMEntry] where
+  aToLlvm (cfg@(ident, _, push), AMkValue value) = pure $ bodyTemplate cfg (aToLlvm value)
   -- appl(0)
-  aToLlvm (ident, push, AAppl (AExt subj) []) =
+  aToLlvm (cfg@(ident, _, push), AAppl (AExt subj) []) =
     pure $
     bodyTemplate
-      ident
-      push
+      cfg
     -- let the callee create its thunk
       [ llvmRecord "appl" $
         LLVMCall {callRef = LLVMGlobal (aToLlvm subj) typeFnCreator, callArgs = [LLVMLit $ LLVMNull typeFramePtr]}
@@ -161,7 +189,7 @@ instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
       , llvmRecord "v" $ LLVMCall {callRef = refForce, callArgs = [LLVMRef $ LLVMLocal (llvmIdent "appl") typeThunkPtr]}
       ]
   -- appl(n)
-  aToLlvm (ident, push, AAppl subj args) = pure $ bodyTemplate ident push (instrSubj ++ instrArgs ++ instrDoApply)
+  aToLlvm (cfg@(ident, _, push), AAppl subj args) = pure $ bodyTemplate cfg (instrSubj ++ instrArgs ++ instrDoApply)
     where
       (refSubj, instrSubj) = aToLlvm (subj, 0 :: Int)
       args' = zipWith (curry aToLlvm) args ([1 ..] :: [Int])
@@ -170,12 +198,13 @@ instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
       -- | terminator arg signals the end of the variadic arguments
       terminatorArg = LLVMLit $ LLVMNull typeThunkPtr
       instrDoApply = [llvmRecord "v" $ LLVMCall {callRef = refApplN, callArgs = refSubj : refsArgs ++ [terminatorArg]}]
-  aToLlvm (ident, push, ACase (ARecordIdx subj) (AAData alts) fallback) =
-    bodyTemplateBasic ident push primaryBody branchBlocks : fallbackEntries ++ altEntries
+  aToLlvm (cfg@(ident, _, push), ACase (ARecordIdx subj) (AAData alts) fallback) =
+    bodyTemplateBasic cfg primaryBody branchBlocks : fallbackEntries ++ altEntries
     where
       (fallbackIdentifier:altIdentifiers) = map (\i -> ident <> AIdent ("--case-" ++ show i)) [0 ..]
-      fallbackEntries = aToLlvm (fallbackIdentifier, False, fallback)
-      altEntries = concat $ zipWith (\ident (_, _, altBody) -> aToLlvm (ident, False, altBody)) altIdentifiers alts
+      fallbackEntries = aToLlvm ((fallbackIdentifier, True, False), fallback)
+      altEntries =
+        concat $ zipWith (\ident (_, _, altBody) -> aToLlvm ((ident, True, False), altBody)) altIdentifiers alts
       (fallbackEntry, switchEntries, branchBlocks) =
         caseStuffTemp (zip3 (map fst3 alts) (map snd3 alts) altIdentifiers) fallbackIdentifier
       primaryBody
@@ -197,12 +226,12 @@ instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
             , switchBranches = switchEntries
             }
         ]
-  aToLlvm (ident, push, ACase (ARecordIdx subj) (AANat alts) fallback) =
-    bodyTemplateBasic ident push primaryBody branchBlocks : fallbackEntries ++ altEntries
+  aToLlvm (cfg@(ident, _, push), ACase (ARecordIdx subj) (AANat alts) fallback) =
+    bodyTemplateBasic cfg primaryBody branchBlocks : fallbackEntries ++ altEntries
     where
       (fallbackIdentifier:altIdentifiers) = map (\i -> ident <> AIdent ("--case-" ++ show i)) [0 ..]
-      fallbackEntries = aToLlvm (fallbackIdentifier, False, fallback)
-      altEntries = concat $ zipWith (\ident (_, altBody) -> aToLlvm (ident, False, altBody)) altIdentifiers alts
+      fallbackEntries = aToLlvm ((fallbackIdentifier, True, False), fallback)
+      altEntries = concat $ zipWith (\ident (_, altBody) -> aToLlvm ((ident, True, False), altBody)) altIdentifiers alts
       (fallbackEntry, switchEntries, branchBlocks) =
         caseStuffTemp2 (zip (map fst alts) altIdentifiers) fallbackIdentifier
       primaryBody
@@ -225,12 +254,14 @@ instance AToLlvm (AIdent, Bool, ABody) [LLVMEntry] where
             , switchBranches = switchEntries
             }
         ]
-  aToLlvm (ident, _, AError errorText) = pure $ bodyTemplate ident False (assignNull "v" "vv")
+  aToLlvm (cfg@(ident, private, _), AError errorText) =
+    pure $ bodyTemplate (ident, private, False) (assignNull "v" "vv")
 
-bodyTemplateBasic :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> [LLVMBlock] -> LLVMEntry
-bodyTemplateBasic ident push beginInstructions blocks =
+bodyTemplateBasic :: (AIdent, Bool, Bool) -> [(Maybe LLVMIdent, LLVMInstruction)] -> [LLVMBlock] -> LLVMEntry
+bodyTemplateBasic (ident, private, push) beginInstructions blocks =
   LLVMFnDefn
-    { fnSign =
+    { fnModifiers = [LLVMPrivate | private]
+    , fnSign =
         LLVMFnSign
           { fnName = aToLlvm ident
           , fnType = typeValuePtr
@@ -271,8 +302,8 @@ bodyTemplateBasic ident push beginInstructions blocks =
         else []
     blockBegin = LLVMBlock (llvmIdent "begin") (pushTheArg ++ beginInstructions)
 
-bodyTemplate :: AIdent -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
-bodyTemplate ident push instructions = bodyTemplateBasic ident push (instructions ++ [returnTheValue]) []
+bodyTemplate :: (AIdent, Bool, Bool) -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
+bodyTemplate cfg instructions = bodyTemplateBasic cfg (instructions ++ [returnTheValue]) []
   where
     returnTheValue = llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "v") typeValuePtr
 

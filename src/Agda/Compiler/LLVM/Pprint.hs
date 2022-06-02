@@ -19,10 +19,14 @@ instance LLVMPretty LLVMModule where
   llvmPretty (LLVMModule entries) = intercalate "\n\n" (map llvmPretty entries)
 
 instance LLVMPretty LLVMEntry where
-  llvmPretty (LLVMFnDecl fnSign) = "declare\n" ++ llvmPretty fnSign
-  llvmPretty (LLVMFnDefn fnSign body) = "define\n" ++ llvmPretty fnSign ++ "\n{\n" ++ body' ++ "}"
+  llvmPretty (LLVMFnDecl fnMods fnSign) = "declare\n" ++ llvmPrettySep "\n" fnMods ++ "\n" ++ llvmPretty fnSign
+  llvmPretty (LLVMFnDefn fnMods fnSign body) =
+    "define\n" ++ llvmPrettySep "\n" fnMods ++ "\n" ++ llvmPretty fnSign ++ "\n{\n" ++ body' ++ "}"
     where
       body' = unlines $ map llvmPretty body
+
+instance LLVMPretty LLVMModifier where
+  llvmPretty LLVMPrivate = "private"
 
 instance LLVMPretty LLVMFnSign where
   llvmPretty (LLVMFnSign fnName fnType fnArgs fnArgsVariadic) =

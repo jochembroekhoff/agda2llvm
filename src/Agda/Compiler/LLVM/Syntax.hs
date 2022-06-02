@@ -15,12 +15,18 @@ data LLVMModule =
 
 data LLVMEntry
   = LLVMFnDecl
-      { fnSign :: LLVMFnSign
+      { fnModifiers :: [LLVMModifier]
+      , fnSign :: LLVMFnSign
       }
   | LLVMFnDefn
-      { fnSign :: LLVMFnSign
+      { fnModifiers :: [LLVMModifier]
+      , fnSign :: LLVMFnSign
       , body :: [LLVMBlock]
       }
+  deriving (Eq)
+
+data LLVMModifier =
+  LLVMPrivate
   deriving (Eq)
 
 data LLVMFnSign =
