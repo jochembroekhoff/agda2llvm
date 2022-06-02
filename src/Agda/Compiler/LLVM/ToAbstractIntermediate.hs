@@ -54,7 +54,7 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
         Just <$> transformPrimitive qn nm
       PrimitiveSort {} -> return Nothing
       Datatype {} -> return Nothing
-      Record {} -> __IMPOSSIBLE_VERBOSE__ "not implemented"
+      Record {} -> return Nothing
       Constructor {conSrcCon = chead, conArity = nargs} -> do
         name <- toA $ conName chead
         let entries = transformCtor name nargs

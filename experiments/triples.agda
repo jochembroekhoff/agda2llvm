@@ -32,13 +32,10 @@ range x y = go (suc y - x) x
     go zero    _ = []
     go (suc m) n = n :: go m (suc n)
 
--- record Triple : Set where
---   constructor triple
---   field
---     fst snd trd : Nat
-
-data Triple : Set where
-  triple : Nat -> Nat -> Nat -> Triple
+record Triple : Set where
+  constructor triple
+  field
+    fst snd trd : Nat
 
 alltriples : Nat → List Triple
 alltriples top = range 1 top >>= λ z → range 1 z >>= λ y → range 1 y >>= λ x → (triple x y z) :: []
