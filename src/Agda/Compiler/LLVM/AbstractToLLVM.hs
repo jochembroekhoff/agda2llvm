@@ -10,6 +10,7 @@ import Agda.Syntax.Literal (Literal(..))
 import Agda.Utils.Maybe (maybeToList)
 import Agda.Utils.Tuple
 import Data.Char (ord)
+import Text.Printf (printf)
 
 class AToLlvm a b where
   aToLlvm :: a -> b
@@ -35,7 +36,7 @@ instance AToLlvm (EvaluationStrategy, AEntry) [LLVMEntry]
                 [ llvmDiscard $
                   LLVMCall
                     {callRef = refMain, callArgs = [LLVMRef $ LLVMGlobal (aToLlvm mainRef) (LLVMPtr typeFnCreator)]}
-                , llvmDiscard $ LLVMRet $ Just $ LLVMLit $ LLVMInt i64 0
+                , llvmDiscard $ LLVMRet $ Just $ LLVMLit $ LLVMInt 64 0
                 ]
             ]
         }
@@ -58,84 +59,124 @@ instance AToLlvm (EvaluationStrategy, AEntry) [LLVMEntry]
         }
     ]
 
+-- | Precompute a static LLVM value for a thunk, if possible.
+--   This is technically possible for all thunks, but it is only
+--   implemented for value thunks.
+--   Delayed thunks that produce a value should already have been optimized out.
+--   Additionally, this is only safe to do for public thunks,
+--   as they are guaranteed to not rely on the current record instance.
+precomputePublicThunk :: AThunk -> Maybe (LLVMValue, [LLVMEntry])
+precomputePublicThunk (AThunkValue v) =
+  Just $
+  case v of
+    AValueData idx kase arity ->
+      let dataBaseIdent = LLVMIdent $ printf "static-%d.%d" idx kase
+          dataBaseValue =
+            LLVMLit $
+            LLVMStructInst False [LLVMLit $ LLVMInt 64 idx, LLVMLit $ LLVMInt 64 kase, LLVMLit $ LLVMNull typeFramePtr]
+       in ( LLVMLit $
+            LLVMStructInst
+              False
+              [ LLVMLit $ LLVMInt 64 1 -- tag=1 : data
+              , LLVMRef $ LLVMGlobal dataBaseIdent (LLVMPtr $ llvmValueType dataBaseValue)
+              ]
+          , [LLVMConstant {constName = dataBaseIdent, constValue = dataBaseValue}])
+    AValueFn fnIdent ->
+      ( LLVMLit $
+        LLVMStructInst
+          False
+          [ LLVMLit $ LLVMInt 64 0 -- tag=0 : fn
+          , LLVMRef $ LLVMGlobal (aToLlvm fnIdent) (LLVMPtr typeFnEvaluator)
+          , LLVMLit $ LLVMNull typeFramePtr
+          ]
+      , [])
+    AValueLit lit ->
+      ( LLVMLit $
+        LLVMStructInst
+          False
+          [ LLVMLit $ LLVMInt 64 $ litTag lit -- tag= derived from the literal
+          , LLVMLit $ litLit lit -- value is the literal itself
+          ]
+      , [])
+precomputePublicThunk _ = Nothing
+
 instance AToLlvm (AIdent, Bool, AThunk, EvaluationStrategy) (LLVMEntry, [LLVMEntry]) where
-  aToLlvm (ident, private, AThunkDelay body, LazyEvaluation) = (thunkConstructor, thunkEvaluator)
+  aToLlvm (ident, private@False, thunk, LazyEvaluation)
+    | Just (precomputedValue, aux) <- precomputePublicThunk thunk =
+      mapSnd (++ aux) $ thunkCreatorTemplate (ident, private, True) (Right precomputedValue)
+  aToLlvm (ident, private, AThunkDelay body, LazyEvaluation) = (thunkConstructor, thunkEvaluator ++ extraEntries)
     where
       bodyIdent = ident <> AIdent "--body"
       thunkEvaluator = aToLlvm ((bodyIdent, True, False), body)
-      thunkConstructor =
+      (thunkConstructor, extraEntries) =
         thunkCreatorTemplate
-          ident
-          private
-        -- configure non-evaluated setting
-          False
-          [ llvmRecord "thunk_eval" $
-            LLVMBitcast {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkEvalPtr}
+          ( ident
+          , private
+            -- configure non-evaluated setting
+          , False)
+          (Left
+             [ llvmRecord "thunk_eval" $
+               LLVMBitcast {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkEvalPtr}
         -- store function pointer
-          , llvmRecord "thunk_eval_ptr" $
-            LLVMGetElementPtr
-              { elemBase = typeThunkEval
-              , elemSrc = LLVMLocal (llvmIdent "thunk_eval") typeThunkEvalPtr
-              , elemIndices = [0, 1, 0]
-              }
-          , llvmDiscard $
-            LLVMStore
-              { storeSrc = LLVMRef $ LLVMGlobal (aToLlvm bodyIdent) (LLVMPtr typeFnEvaluator)
-              , storeDest = LLVMLocal (llvmIdent "thunk_eval_ptr") (LLVMPtr $ LLVMPtr typeFnEvaluator)
-              }
+             , llvmRecord "thunk_eval_ptr" $
+               LLVMGetElementPtr
+                 { elemBase = typeThunkEval
+                 , elemSrc = LLVMLocal (llvmIdent "thunk_eval") typeThunkEvalPtr
+                 , elemIndices = [0, 1, 0]
+                 }
+             , llvmDiscard $
+               LLVMStore
+                 { storeSrc = LLVMRef $ LLVMGlobal (aToLlvm bodyIdent) (LLVMPtr typeFnEvaluator)
+                 , storeDest = LLVMLocal (llvmIdent "thunk_eval_ptr") (LLVMPtr $ LLVMPtr typeFnEvaluator)
+                 }
         -- store function record
-          , llvmRecord "thunk_eval_record" $
-            LLVMGetElementPtr
-              { elemBase = typeThunkEval
-              , elemSrc = LLVMLocal (llvmIdent "thunk_eval") typeThunkEvalPtr
-              , elemIndices = [0, 1, 1]
-              }
-          , llvmDiscard $
-            LLVMStore
-              { storeSrc =
-                  if private
-                    then LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
-                    else LLVMLit $ LLVMNull typeFramePtr
-              , storeDest = LLVMLocal (llvmIdent "thunk_eval_record") (LLVMPtr typeFramePtr)
-              }
-          ]
-  aToLlvm (ident, private, AThunkDelay body, EagerEvaluation) = (thunkConstructor, thunkEvaluator)
+             , llvmRecord "thunk_eval_record" $
+               LLVMGetElementPtr
+                 { elemBase = typeThunkEval
+                 , elemSrc = LLVMLocal (llvmIdent "thunk_eval") typeThunkEvalPtr
+                 , elemIndices = [0, 1, 1]
+                 }
+             , llvmDiscard $
+               LLVMStore
+                 { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
+                 , storeDest = LLVMLocal (llvmIdent "thunk_eval_record") (LLVMPtr typeFramePtr)
+                 }
+             ])
+  aToLlvm (ident, private, AThunkDelay body, EagerEvaluation) = (thunkConstructor, thunkEvaluator ++ extraEntries)
     where
       bodyIdent = ident <> AIdent "--body-strict"
       thunkEvaluator = aToLlvm ((bodyIdent, True, False), body)
-      thunkConstructor =
+      (thunkConstructor, extraEntries) =
         thunkCreatorTemplate
-          ident
-          private
-          True
-          [ llvmRecord "thunk_value" $
-            LLVMBitcast {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkValuePtr}
-          , llvmRecord "thunk_value_ptr" $
-            LLVMGetElementPtr
-              { elemBase = typeThunkValue
-              , elemSrc = LLVMLocal (llvmIdent "thunk_value") typeThunkValuePtr
-              , elemIndices = [0, 1]
-              }
-          , llvmRecord "v" $
-            LLVMCall
-              { callRef = LLVMGlobal (aToLlvm bodyIdent) typeFnEvaluator
-              , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMNull typeThunkPtr]
-              }
-          , llvmDiscard $
-            LLVMStore
-              { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "v") typeValuePtr
-              , storeDest = LLVMLocal (llvmIdent "thunk_value_ptr") (LLVMPtr typeValuePtr)
-              }
-          ]
-  aToLlvm (ident, private, AThunkValue value, _) = (thunkConstructor, [])
+          (ident, private, True)
+          (Left
+             [ llvmRecord "thunk_value" $
+               LLVMBitcast {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkValuePtr}
+             , llvmRecord "thunk_value_ptr" $
+               LLVMGetElementPtr
+                 { elemBase = typeThunkValue
+                 , elemSrc = LLVMLocal (llvmIdent "thunk_value") typeThunkValuePtr
+                 , elemIndices = [0, 1]
+                 }
+             , llvmRecord "v" $
+               LLVMCall
+                 { callRef = LLVMGlobal (aToLlvm bodyIdent) typeFnEvaluator
+                 , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMNull typeThunkPtr]
+                 }
+             , llvmDiscard $
+               LLVMStore
+                 { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "v") typeValuePtr
+                 , storeDest = LLVMLocal (llvmIdent "thunk_value_ptr") (LLVMPtr typeValuePtr)
+                 }
+             ])
+  aToLlvm (ident, private, AThunkValue value, _) = (thunkConstructor, extraEntries)
     where
       valueCreateInstructions = aToLlvm value
-      thunkConstructor =
+      (thunkConstructor, extraEntries) =
         thunkCreatorTemplate
-          ident
-          private
-          True
-          (valueCreateInstructions ++
+          (ident, private, True)
+          (Left $
+           valueCreateInstructions ++
         -- configure already-evaluated setting
            [ llvmRecord "thunk_value" $
              LLVMBitcast {bitcastFrom = LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr, bitcastTo = typeThunkValuePtr}
@@ -153,13 +194,15 @@ instance AToLlvm (AIdent, Bool, AThunk, EvaluationStrategy) (LLVMEntry, [LLVMEnt
                }
            ])
 
-thunkCreatorTemplate :: AIdent -> Bool -> Bool -> [(Maybe LLVMIdent, LLVMInstruction)] -> LLVMEntry
-thunkCreatorTemplate ident isPrivate isEval instructions =
-  LLVMFnDefn
-    { fnModifiers = [LLVMPrivate | isPrivate]
-    , fnSign = mkCreatorFnSign $ aToLlvm ident
-    , body = [LLVMBlock (llvmIdent "begin") (constructThunkHolder ++ instructions ++ [returnThunkHolder])]
-    }
+thunkCreatorTemplate ::
+     (AIdent, Bool, Bool) -> Either [(Maybe LLVMIdent, LLVMInstruction)] LLVMValue -> (LLVMEntry, [LLVMEntry])
+thunkCreatorTemplate (ident, isPrivate, isEval) (Left instructions) =
+  ( LLVMFnDefn
+      { fnModifiers = [LLVMPrivate | isPrivate]
+      , fnSign = mkCreatorFnSign $ aToLlvm ident
+      , body = [LLVMBlock (llvmIdent "begin") (constructThunkHolder ++ instructions ++ [returnThunkHolder])]
+      }
+  , [])
   where
     constructThunkHolder
         -- construct a new instance
@@ -177,6 +220,32 @@ thunkCreatorTemplate ident isPrivate isEval instructions =
           }
       ]
     returnThunkHolder = llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "thunk_raw") typeThunkPtr
+thunkCreatorTemplate (ident, isPrivate, True) (Right value) =
+  ( LLVMFnDefn
+      { fnModifiers = [LLVMPrivate | isPrivate]
+      , fnSign = mkCreatorFnSign $ aToLlvm ident
+      , body = [LLVMBlock (llvmIdent "begin") instructions]
+      }
+  , [valueGlobalizer, thunkWrapperGlobalizer])
+  where
+    identGlobalizer = aToLlvm $ ident <> AIdent "--thunk_v"
+    identWrapper = aToLlvm $ ident <> AIdent "--thunk_v_wrapper"
+    valueGlobalizer = LLVMConstant identGlobalizer value
+    thunkWrapper =
+      LLVMLit $
+      LLVMStructInst
+        False
+        [ LLVMLit $ LLVMInt 64 1 -- evaluated flag set to true
+        , LLVMRef $ LLVMGlobal identGlobalizer (LLVMPtr $ llvmValueType value)
+        ]
+    thunkWrapperGlobalizer = LLVMConstant identWrapper thunkWrapper
+    instructions =
+      [ llvmRecord "thunk_generic" $
+        LLVMBitcast
+          {bitcastFrom = LLVMGlobal identWrapper (LLVMPtr $ llvmValueType thunkWrapper), bitcastTo = typeThunkPtr}
+      , llvmDiscard $ LLVMRet $ Just $ LLVMRef $ LLVMLocal (llvmIdent "thunk_generic") typeThunkPtr
+      ]
+thunkCreatorTemplate (_, _, False) _ = undefined
 
 instance AToLlvm ((AIdent, Bool, Bool), ABody) [LLVMEntry] where
   aToLlvm (cfg@(ident, _, push), AMkValue value) = pure $ bodyTemplate cfg (aToLlvm value)
@@ -216,7 +285,7 @@ instance AToLlvm ((AIdent, Bool, Bool), ABody) [LLVMEntry] where
         [ llvmRecord "case_subj_thunk" $
           LLVMCall
             { callRef = refRecordGet
-            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt i64 subj]
+            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt 64 subj]
             }
           -- call runtime to obtain identification info (data id)
         , llvmRecord "data_id" $
@@ -243,7 +312,7 @@ instance AToLlvm ((AIdent, Bool, Bool), ABody) [LLVMEntry] where
         [ llvmRecord "case_subj_thunk" $
           LLVMCall
             { callRef = refRecordGet
-            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt i64 subj]
+            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt 64 subj]
             }
           -- call runtime to obtain the underlying value
         , llvmRecord "lit_nat_value" $
@@ -340,13 +409,13 @@ caseStuffTemp cases fallback = (labelDefault, cases''1, blockDefault : cases''2)
                   { callRef = refRecordExtract
                   , callArgs =
                       [ LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
-                      , LLVMLit $ LLVMInt i64 arity
+                      , LLVMLit $ LLVMInt 64 arity
                       , LLVMRef $ LLVMLocal (llvmIdent "case_subj_thunk") typeThunkPtr
                       ]
                   }
               ]
     fn :: Int -> (AIdent, Int, AIdent) -> ((LLVMLit, LLVMIdent), LLVMBlock)
-    fn i (ctorIdent, arity, destIdent) = ((LLVMInt i64 dataId, lbl), block)
+    fn i (ctorIdent, arity, destIdent) = ((LLVMInt 64 dataId, lbl), block)
       where
         dataId = uncurry (+) $ computeCtorIdent ctorIdent
         lbl = llvmIdent $ "case-" ++ show i
@@ -376,7 +445,7 @@ caseStuffTemp2 cases fallback = (labelDefault, cases''1, blockDefault : cases''2
       where
         var = "v-" ++ varSuffix
     fn :: Int -> (Int, AIdent) -> ((LLVMLit, LLVMIdent), LLVMBlock)
-    fn i (num, destIdent) = ((LLVMInt i64 num, lbl), block)
+    fn i (num, destIdent) = ((LLVMInt 64 num, lbl), block)
       where
         lbl = llvmIdent $ "case-" ++ show i
         block = fnBlock (show i) destIdent lbl
@@ -406,7 +475,7 @@ instance AToLlvm (AArg, Int) (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)]) w
         [ llvmRecord local $
           LLVMCall
             { callRef = refRecordGet
-            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt i64 idx]
+            , callArgs = [LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr, LLVMLit $ LLVMInt 64 idx]
             }
         ]
   aToLlvm (AErased, argIdx) =
@@ -414,7 +483,7 @@ instance AToLlvm (AArg, Int) (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)]) w
       argIdx
       \local
     -- use a dummy value. shouldn't be zero because that indicates NULL. all other values are fine.
-       -> [llvmRecord local $ LLVMIntToPtr (LLVMInt i64 1) typeThunkPtr]
+       -> [llvmRecord local $ LLVMIntToPtr (LLVMInt 64 1) typeThunkPtr]
 
 argTemplate ::
      Int -> (String -> [(Maybe LLVMIdent, LLVMInstruction)]) -> (LLVMValue, [(Maybe LLVMIdent, LLVMInstruction)])
@@ -430,21 +499,21 @@ instance AToLlvm AValue [(Maybe LLVMIdent, LLVMInstruction)] where
       createData
         -- initialize empty data base
        =
-        [ llvmRecord "data_base" $ LLVMCall {callRef = refAllocData, callArgs = [LLVMLit $ LLVMInt i64 dataSize]}
+        [ llvmRecord "data_base" $ LLVMCall {callRef = refAllocData, callArgs = [LLVMLit $ LLVMInt 64 dataSize]}
         -- store idx
         , llvmRecord "data_base_idx" $
           LLVMGetElementPtr
             {elemBase = typeDataBase, elemSrc = LLVMLocal (llvmIdent "data_base") typeDataBasePtr, elemIndices = [0, 0]}
         , llvmDiscard $
           LLVMStore
-            {storeSrc = LLVMLit $ LLVMInt i64 idx, storeDest = LLVMLocal (llvmIdent "data_base_idx") (LLVMPtr i64)}
+            {storeSrc = LLVMLit $ LLVMInt 64 idx, storeDest = LLVMLocal (llvmIdent "data_base_idx") (LLVMPtr i64)}
         -- store case
         , llvmRecord "data_base_case" $
           LLVMGetElementPtr
             {elemBase = typeDataBase, elemSrc = LLVMLocal (llvmIdent "data_base") typeDataBasePtr, elemIndices = [0, 1]}
         , llvmDiscard $
           LLVMStore
-            {storeSrc = LLVMLit $ LLVMInt i64 kase, storeDest = LLVMLocal (llvmIdent "data_base_case") (LLVMPtr i64)}
+            {storeSrc = LLVMLit $ LLVMInt 64 kase, storeDest = LLVMLocal (llvmIdent "data_base_case") (LLVMPtr i64)}
         -- store content (= current record)
         , llvmRecord "data_base_content" $
           LLVMGetElementPtr
@@ -528,7 +597,7 @@ createValueTagged tag
   , llvmRecord "v_tag" $
     LLVMGetElementPtr {elemBase = typeValue, elemSrc = LLVMLocal (llvmIdent "v") typeValuePtr, elemIndices = [0, 0]}
   , llvmDiscard $
-    LLVMStore {storeSrc = LLVMLit $ LLVMInt i64 tag, storeDest = LLVMLocal (llvmIdent "v_tag") (LLVMPtr i64)}
+    LLVMStore {storeSrc = LLVMLit $ LLVMInt 64 tag, storeDest = LLVMLocal (llvmIdent "v_tag") (LLVMPtr i64)}
   ]
 
 litTag :: Literal -> Int
@@ -548,11 +617,11 @@ litType LitChar {} = (typeValueCommon "lit_chr", i8)
 litType _ = undefined
 
 litLit :: Literal -> LLVMLit
-litLit (LitNat v) = LLVMInt i64 (fromIntegral v)
-litLit (LitWord64 v) = LLVMInt i64 (fromIntegral v)
+litLit (LitNat v) = LLVMInt 64 (fromIntegral v)
+litLit (LitWord64 v) = LLVMInt 64 (fromIntegral v)
 litLit (LitFloat v) = LLVMDoubleV v
 litLit (LitString v) = undefined -- TODO
-litLit (LitChar v) = LLVMInt i8 (ord v)
+litLit (LitChar v) = LLVMInt 8 (ord v)
 litLit _ = undefined
 
 assignNull :: String -> String -> [(Maybe LLVMIdent, LLVMInstruction)]

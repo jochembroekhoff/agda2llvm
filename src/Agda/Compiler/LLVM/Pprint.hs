@@ -1,6 +1,7 @@
 module Agda.Compiler.LLVM.Pprint where
 
 import Agda.Compiler.LLVM.Syntax
+import Agda.Compiler.LLVM.SyntaxUtil (llvmLitType)
 import Data.List
 
 class LLVMPretty a where
@@ -93,10 +94,14 @@ instance LLVMPretty LLVMRef where
   llvmPretty (LLVMGlobal ident t) = llvmPretty t ++ " @" ++ llvmPretty ident
 
 instance LLVMPretty LLVMLit where
-  llvmPretty (LLVMBool False) = "i1 false"
-  llvmPretty (LLVMBool True) = "i1 true"
-  llvmPretty (LLVMDoubleV v) = "double " ++ show v
-  llvmPretty (LLVMInt t v) = llvmPretty t ++ " " ++ show v
-  llvmPretty (LLVMNull t) = llvmPretty t ++ " null"
-  llvmPretty (LLVMStructInst False fields) = "{ " ++ llvmPrettyComma fields ++ " }"
-  llvmPretty (LLVMStructInst True fields) = "<{ " ++ llvmPrettyComma fields ++ " }>"
+  llvmPretty lit =
+    (llvmPretty . llvmLitType) lit ++
+    " " ++
+    (case lit of
+       LLVMBool True -> "true"
+       LLVMBool False -> "false"
+       LLVMDoubleV v -> show v
+       LLVMInt _ v -> show v
+       LLVMNull _ -> "null"
+       LLVMStructInst True fields -> "<{ " ++ llvmPrettyComma fields ++ " }>"
+       LLVMStructInst False fields -> "{ " ++ llvmPrettyComma fields ++ " }")

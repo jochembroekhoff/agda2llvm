@@ -7,6 +7,9 @@ newtype LLVMIdent =
 instance Show LLVMIdent where
   show (LLVMIdent ident) = ident
 
+instance Semigroup LLVMIdent where
+  LLVMIdent a <> LLVMIdent b = LLVMIdent $ a <> b
+
 data LLVMModule =
   LLVMModule
     { entries :: [LLVMEntry]
@@ -147,11 +150,11 @@ data LLVMLit
       { doubleValue :: Double
       }
   | LLVMInt
-      { litType :: LLVMType
-      , litValue :: Int
+      { intSize :: Int
+      , intValue :: Int
       }
   | LLVMNull
-      { litType :: LLVMType
+      { nullType :: LLVMType
       }
   | LLVMStructInst
       { structInstPacked :: Bool

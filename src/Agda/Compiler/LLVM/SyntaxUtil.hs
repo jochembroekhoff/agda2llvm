@@ -36,3 +36,19 @@ toHex i = toHex (i `div` 16) ++ [fourBitsToChar (i `mod` 16)]
   where
     fourBitsToChar i = "0123456789abcdef" !! i
     {-# INLINE fourBitsToChar #-}
+
+llvmValueType :: LLVMValue -> LLVMType
+llvmValueType =
+  \case
+    (LLVMRef LLVMLocal {refType = ty}) -> ty
+    (LLVMRef LLVMGlobal {refType = ty}) -> ty
+    LLVMLit lit -> llvmLitType lit
+
+llvmLitType :: LLVMLit -> LLVMType
+llvmLitType =
+  \case
+    LLVMBool {} -> LLVMSizedInt 1
+    LLVMDoubleV {} -> LLVMDouble
+    LLVMInt {intSize = sz} -> LLVMSizedInt sz
+    LLVMNull ty -> ty
+    LLVMStructInst packed fields -> LLVMStruct packed (map llvmValueType fields)
