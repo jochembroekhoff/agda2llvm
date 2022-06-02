@@ -92,7 +92,10 @@ instance AToLlvm (AIdent, Bool, AThunk, EvaluationStrategy) (LLVMEntry, [LLVMEnt
               }
           , llvmDiscard $
             LLVMStore
-              { storeSrc = LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
+              { storeSrc =
+                  if private
+                    then LLVMRef $ LLVMLocal (llvmIdent "record") typeFramePtr
+                    else LLVMLit $ LLVMNull typeFramePtr
               , storeDest = LLVMLocal (llvmIdent "thunk_eval_record") (LLVMPtr typeFramePtr)
               }
           ]
