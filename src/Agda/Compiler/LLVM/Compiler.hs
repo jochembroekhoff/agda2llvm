@@ -9,7 +9,7 @@ import Agda.Compiler.LLVM.ASyntax
 import Agda.Compiler.LLVM.ASyntaxUtil (aIdentFromQName)
 import Agda.Compiler.LLVM.AbstractToLLVM (AToLlvm(aToLlvm))
 import Agda.Compiler.LLVM.Options
-  ( LLVMOptions(llvmVerboseRuntime)
+  ( LLVMOptions(llvmEvaluationStrategy, llvmVerboseRuntime)
   , defaultLLVMOptions
   , optionFlagClangDebug
   , optionFlagEvaluationStrategy
@@ -97,13 +97,13 @@ llvmPostCompile opts isMain modules = do
   modules' <- traverse (uncurry writeIntermediateModule) $ Map.toList modules
   auxMetaModule <- llvmAuxMetaModule
   auxMeta <- writeIntermediateAux "meta" auxMetaModule
-  auxBuiltinRefsModule <- llvmAuxBuiltinRefsModule
+  auxBuiltinRefsModule <- llvmAuxBuiltinRefsModule opts
   auxBuiltinRefs <- writeIntermediateAux "builtin_refs" auxBuiltinRefsModule
   callLLVM opts isMain (auxMeta : auxBuiltinRefs : modules')
 
 --- Module & defs compilation ---
 llvmPostModule :: LLVMOptions -> LLVMEnv -> IsMain -> ModuleName -> [[AEntry]] -> TCM LLVMModule
-llvmPostModule _ _ main m defs = do
+llvmPostModule opts _ main m defs = do
   d <- compileDir
   let m' = mnameToList m
   interm <- fileIntermediateMod m
@@ -114,7 +114,7 @@ llvmPostModule _ _ main m defs = do
        putStrLn $ "IntermediateFile: " ++ show interm
   -- TODO: check that there is a definition @main iff main==IsMain
   -- TODO: add header entries (instead of string concat)
-  let defs' = concatMap aToLlvm $ concat defs
+  let defs' = concatMap (aToLlvm . (llvmEvaluationStrategy opts, )) $ concat defs
       defsImported = llvmThunkImports defs'
   return $ LLVMModule {entries = defsImported ++ defs'}
 
@@ -166,8 +166,8 @@ llvmIsImportable (LLVMIdent identRaw) = any (`isPrefixOf` identRaw) ["agda2llvm.
 llvmAuxMetaModule :: TCM LLVMModule
 llvmAuxMetaModule = return $ LLVMModule []
 
-llvmAuxBuiltinRefsModule :: TCM LLVMModule
-llvmAuxBuiltinRefsModule = do
+llvmAuxBuiltinRefsModule :: LLVMOptions -> TCM LLVMModule
+llvmAuxBuiltinRefsModule opts = do
   true <- getBuiltinName builtinTrue
   false <- getBuiltinName builtinFalse
   let true' = mkBuiltin "true" true
@@ -176,18 +176,20 @@ llvmAuxBuiltinRefsModule = do
   where
     mkBuiltin :: String -> Maybe QName -> [LLVMEntry]
     mkBuiltin n Nothing =
-      aToLlvm $
-      AEntryDirect
-        { entryIdent = AIdentRaw $ "agda.builtin_refs.make_" ++ n
-        , entryPushArg = False
-        , entryBody = AError "builtin not bound, but still used"
-        }
+      aToLlvm
+        ( llvmEvaluationStrategy opts
+        , AEntryDirect
+            { entryIdent = AIdentRaw $ "agda.builtin_refs.make_" ++ n
+            , entryPushArg = False
+            , entryBody = AError "builtin not bound, but still used"
+            })
     mkBuiltin n (Just qn) =
-      aToLlvm $
-      AEntryDirect
-        { entryIdent = AIdentRaw $ "agda.builtin_refs.make_" ++ n
-        , entryPushArg = False
-        , entryBody = AMkValue $ AValueData {dataIdx = idx, dataCase = kase, dataArity = 0}
-        }
+      aToLlvm
+        ( llvmEvaluationStrategy opts
+        , AEntryDirect
+            { entryIdent = AIdentRaw $ "agda.builtin_refs.make_" ++ n
+            , entryPushArg = False
+            , entryBody = AMkValue $ AValueData {dataIdx = idx, dataCase = kase, dataArity = 0}
+            })
       where
         (idx, kase) = computeCtorIdent $ aIdentFromQName qn

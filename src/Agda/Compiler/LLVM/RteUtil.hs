@@ -113,10 +113,10 @@ refMain =
     , refType = LLVMFn {fnRet = typeValuePtr, fnParams = [LLVMPtr typeFnCreator], fnVariadic = False}
     }
 
-refAppl0 :: LLVMRef
-refAppl0 =
+refForce :: LLVMRef
+refForce =
   LLVMGlobal
-    { refName = LLVMIdent "agda.eval.appl.0"
+    { refName = LLVMIdent "agda.eval.force"
     , refType = LLVMFn {fnRet = typeValuePtr, fnParams = [typeThunkPtr], fnVariadic = False}
     }
 

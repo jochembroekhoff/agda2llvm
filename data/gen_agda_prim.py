@@ -93,10 +93,10 @@ def gen_prim(name: str, arity: int) -> str:
                 @agda.prim.{name}--lam-{i}(%agda.struct.frame* %record, %agda.struct.thunk* %arg_r_thunk)
                 {{
                     ; (1) get right-hand argument and force it (current item being pushed to stack)
-                    %arg_r = call %agda.struct.value* @agda.eval.appl.0(%agda.struct.thunk* %arg_r_thunk)
+                    %arg_r = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %arg_r_thunk)
                     ; (2) get left-hand argument and force it (it's on the record)
                     %arg_l_thunk = call %agda.struct.thunk* @agda.record.get(%agda.struct.frame* %record, i64 0)
-                    %arg_l = call %agda.struct.value* @agda.eval.appl.0(%agda.struct.thunk* %arg_l_thunk)
+                    %arg_l = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %arg_l_thunk)
                     ; (3) call&ret @agda.prim.impl.{name}(arg_l, arg_r)
                     %res = call %agda.struct.value* @agda.prim.impl.{name}(%agda.struct.value* %arg_l, %agda.struct.value* %arg_r)
                     ret %agda.struct.value* %res

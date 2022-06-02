@@ -127,15 +127,6 @@ AlreadyEvaluated:
     ret %agda.struct.value* %final_value
 }
 
-define
-%agda.struct.value*
-@agda.eval.appl.0(%agda.struct.thunk* %appl)
-{
-    ; evaluate the value, this is basically just an alias to force (which is private)
-    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %appl)
-    ret %agda.struct.value* %v
-}
-
 @.str.TypeIncorrect = private constant [35 x i8] c"AGDA: cannot apply to non-fn data\0A\00"
 
 define

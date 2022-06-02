@@ -92,7 +92,7 @@ define internal
     ret %agda.struct.value* %res
 }
 
-define internal
+define
 %agda.struct.value*
 @agda.eval.force(%agda.struct.thunk* %thunk)
 {
@@ -125,15 +125,6 @@ AlreadyEvaluated:
     ; return the value pointer
     %final_value = load %agda.struct.value*, %agda.struct.value** %value_ptr_ptr
     ret %agda.struct.value* %final_value
-}
-
-define
-%agda.struct.value*
-@agda.eval.appl.0(%agda.struct.thunk* %appl)
-{
-    ; evaluate the value, this is basically just an alias to force (which is private)
-    %v = call %agda.struct.value* @agda.eval.force(%agda.struct.thunk* %appl)
-    ret %agda.struct.value* %v
 }
 
 define

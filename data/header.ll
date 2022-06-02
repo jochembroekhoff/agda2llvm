@@ -38,7 +38,7 @@ declare
 
 declare
 %agda.struct.value*
-@agda.eval.appl.0(%agda.struct.thunk*)
+@agda.eval.force(%agda.struct.thunk*)
 
 declare
 %agda.struct.value*
