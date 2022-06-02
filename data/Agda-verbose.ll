@@ -92,7 +92,7 @@ define internal
     ret %agda.struct.value* %res
 }
 
-define internal
+define
 %agda.struct.value*
 @agda.eval.force(%agda.struct.thunk* %thunk)
 {
