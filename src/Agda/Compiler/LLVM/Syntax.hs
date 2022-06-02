@@ -23,6 +23,10 @@ data LLVMEntry
       , fnSign :: LLVMFnSign
       , body :: [LLVMBlock]
       }
+  | LLVMConstant
+      { constName :: LLVMIdent
+      , constValue :: LLVMValue
+      }
   deriving (Eq)
 
 data LLVMModifier =
@@ -148,5 +152,9 @@ data LLVMLit
       }
   | LLVMNull
       { litType :: LLVMType
+      }
+  | LLVMStructInst
+      { structInstPacked :: Bool
+      , structInstFields :: [LLVMValue]
       }
   deriving (Eq)

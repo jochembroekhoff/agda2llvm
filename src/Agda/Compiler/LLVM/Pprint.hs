@@ -24,6 +24,7 @@ instance LLVMPretty LLVMEntry where
     "define\n" ++ llvmPrettySep "\n" fnMods ++ "\n" ++ llvmPretty fnSign ++ "\n{\n" ++ body' ++ "}"
     where
       body' = unlines $ map llvmPretty body
+  llvmPretty (LLVMConstant name value) = "@" ++ llvmPretty name ++ " = private constant " ++ llvmPretty value
 
 instance LLVMPretty LLVMModifier where
   llvmPretty LLVMPrivate = "private"
@@ -97,3 +98,5 @@ instance LLVMPretty LLVMLit where
   llvmPretty (LLVMDoubleV v) = "double " ++ show v
   llvmPretty (LLVMInt t v) = llvmPretty t ++ " " ++ show v
   llvmPretty (LLVMNull t) = llvmPretty t ++ " null"
+  llvmPretty (LLVMStructInst False fields) = "{ " ++ llvmPrettyComma fields ++ " }"
+  llvmPretty (LLVMStructInst True fields) = "<{ " ++ llvmPrettyComma fields ++ " }>"
