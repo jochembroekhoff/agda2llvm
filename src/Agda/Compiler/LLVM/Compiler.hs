@@ -7,6 +7,7 @@ import Agda.Compiler.Backend
 import Agda.Compiler.Common (compileDir)
 import Agda.Compiler.LLVM.ASyntax
 import Agda.Compiler.LLVM.ASyntaxUtil (aIdentFromQName)
+import Agda.Compiler.LLVM.AbstractOpt (AbstractOptimize(abstractOptimize))
 import Agda.Compiler.LLVM.AbstractToLLVM (AToLlvm(aToLlvm))
 import Agda.Compiler.LLVM.Options
   ( LLVMOptions(llvmEvaluationStrategy, llvmVerboseRuntime)
@@ -114,7 +115,7 @@ llvmPostModule opts _ main m defs = do
        putStrLn $ "IntermediateFile: " ++ show interm
   -- TODO: check that there is a definition @main iff main==IsMain
   -- TODO: add header entries (instead of string concat)
-  let defs' = concatMap (aToLlvm . (llvmEvaluationStrategy opts, )) $ concat defs
+  let defs' = concatMap (llvmFromAbstract opts) $ concat defs
       defsImported = llvmThunkImports defs'
   return $ LLVMModule {entries = defsImported ++ defs'}
 
@@ -176,20 +177,21 @@ llvmAuxBuiltinRefsModule opts = do
   where
     mkBuiltin :: String -> Maybe QName -> [LLVMEntry]
     mkBuiltin n Nothing =
-      aToLlvm
-        ( llvmEvaluationStrategy opts
-        , AEntryDirect
-            { entryIdent = AIdentRaw $ "agda.builtin_refs.make_" ++ n
-            , entryPushArg = False
-            , entryBody = AError "builtin not bound, but still used"
-            })
+      llvmFromAbstract opts $
+      AEntryDirect
+        { entryIdent = AIdentRaw $ "agda.builtin_refs.make_" ++ n
+        , entryPushArg = False
+        , entryBody = AError "builtin not bound, but still used"
+        }
     mkBuiltin n (Just qn) =
-      aToLlvm
-        ( llvmEvaluationStrategy opts
-        , AEntryDirect
-            { entryIdent = AIdentRaw $ "agda.builtin_refs.make_" ++ n
-            , entryPushArg = False
-            , entryBody = AMkValue $ AValueData {dataIdx = idx, dataCase = kase, dataArity = 0}
-            })
+      llvmFromAbstract opts $
+      AEntryDirect
+        { entryIdent = AIdentRaw $ "agda.builtin_refs.make_" ++ n
+        , entryPushArg = False
+        , entryBody = AMkValue $ AValueData {dataIdx = idx, dataCase = kase, dataArity = 0}
+        }
       where
         (idx, kase) = computeCtorIdent $ aIdentFromQName qn
+
+llvmFromAbstract :: LLVMOptions -> AEntry -> [LLVMEntry]
+llvmFromAbstract opts = aToLlvm . (llvmEvaluationStrategy opts, ) . abstractOptimize
