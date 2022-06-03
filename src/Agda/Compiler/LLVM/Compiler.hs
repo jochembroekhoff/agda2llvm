@@ -56,7 +56,7 @@ llvmBackend' =
     , options = defaultLLVMOptions
     , commandLineFlags = llvmCommandLineFlags
     , isEnabled = const True
-    , preCompile = llvmPreCompile
+    , preCompile = return
     , postCompile = llvmPostCompile
     , preModule = \_ _ _ _ -> return $ Recompile LLVMEnv {}
     , postModule = llvmPostModule
@@ -90,9 +90,6 @@ data LLVMEnv =
     }
 
 --- Compilation start & finish handlers ---
-llvmPreCompile :: LLVMOptions -> TCM LLVMOptions
-llvmPreCompile = return
-
 llvmPostCompile :: LLVMOptions -> IsMain -> Map.Map ModuleName LLVMModule -> TCM ()
 llvmPostCompile opts isMain modules = do
   modules' <- traverse (uncurry writeIntermediateModule) $ Map.toList modules
