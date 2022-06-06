@@ -88,7 +88,7 @@ transformFunction :: QName -> TTerm -> ToAM AIdent
 transformFunction qn tt = do
   qn' <- toA qn
   body <- toA (qn', tt)
-  let bodyEntry = AEntryThunk {entryIdent = qn', entryPrivate = False, entryThunk = bodyToThunkMaybeDirect body}
+  let bodyEntry = AEntryThunk {entryIdent = qn', entryPrivate = False, entryThunk = AThunkDelay body}
   tell [bodyEntry]
   return qn'
 
@@ -150,12 +150,6 @@ instance ToAbstractIntermediate (AIdent, TAlt) (Int, ABody) where
     return (fromIntegral num, body')
   toA _ = __IMPOSSIBLE_VERBOSE__ "didn't expect anything else than (TALit (LitNat _) _) in a nat-literal-switch"
 
--- | Convert a body into a thunk.
---   In case the body is a value constructor, the value is lifted into a direct thunk, saving one indirection
-bodyToThunkMaybeDirect :: ABody -> AThunk
-bodyToThunkMaybeDirect (AMkValue value) = AThunkValue value
-bodyToThunkMaybeDirect body = AThunkDelay body
-
 tmpLift :: (AIdent, TTerm) -> String -> ToAM AArg
 tmpLift info@(qn, tt) kind = do
   next <- getNextAndIncrement
@@ -163,7 +157,7 @@ tmpLift info@(qn, tt) kind = do
   body <- toA info
   -- construct the lifted member and return
   let qn' = qn <> AIdent ("--" ++ kind ++ "_lift-" ++ show next)
-      entry = AEntryThunk {entryIdent = qn', entryPrivate = True, entryThunk = bodyToThunkMaybeDirect body}
+      entry = AEntryThunk {entryIdent = qn', entryPrivate = True, entryThunk = AThunkDelay body}
   tell [entry]
   return (AExt qn')
 
@@ -171,14 +165,14 @@ toArg :: (AIdent, TTerm) -> ToAM AArg
 toArg (_, TVar idx) = return $ ARecord $ ARecordIdx idx
 toArg (_, TPrim prim) = return $ AExt $ AIdentRaw $ "agda.prim." ++ primIdent prim
 toArg (_, TDef qn) = AExt <$> toA qn
+toArg (_, TCon cn) = AExt <$> toA cn
+toArg (qn, let_@TLet {}) = toArg (qn, desugarLet let_)
+toArg (_, TErased) = return AErased
+toArg (qn, TCoerce tt) = toArg (qn, tt)
 toArg info@(qn, TApp {}) = tmpLift info "appl"
 toArg info@(qn, TLam {}) = tmpLift info "lam"
 toArg info@(qn, TLit {}) = tmpLift info "lit"
-toArg (_, TCon cn) = return $ AExt $ AIdent $ prettyShow cn
-toArg (qn, let_@TLet {}) = toArg (qn, desugarLet let_)
 toArg info@(qn, TCase {}) = tmpLift info "case"
-toArg (_, TErased) = return AErased
-toArg (qn, TCoerce tt) = toArg (qn, tt)
 toArg _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
 
 primIdent :: TPrim -> String
