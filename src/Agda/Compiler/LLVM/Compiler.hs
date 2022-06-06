@@ -21,7 +21,7 @@ import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
 import Agda.Compiler.LLVM.SyntaxUtil (llvmDiscard, llvmIdent)
 import Agda.Compiler.LLVM.Tables (computeCtorIdent)
-import Agda.Compiler.LLVM.ToAbstractIntermediate (ToAbstractIntermediate(toA))
+import Agda.Compiler.LLVM.ToAbstractIntermediate (ToAbstractIntermediate(toA), runToA)
 import Agda.Compiler.LLVM.Wiring
   ( callLLVM
   , fileIntermediateAux
@@ -35,6 +35,7 @@ import Agda.Utils.Pretty (prettyShow)
 import Agda.Utils.Tuple (mapFstM)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State
+import Control.Monad.Writer
 import Data.List (isPrefixOf)
 import qualified Data.Map as Map
 import Data.Maybe (mapMaybe, maybeToList)
@@ -118,10 +119,10 @@ llvmPostModule opts _ main m defs = do
 
 llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM [AEntry]
 llvmCompileDef opts _ isMain def = do
-  res <- evalStateT (toA def) (opts, 0)
+  (res, entries) <- runToA opts def
   case res of
     Nothing -> return []
-    Just (name, entries) -> return (entries ++ [AEntryMain name | thisDefIsTheMainOne isMain def])
+    Just name -> return (entries ++ [AEntryMain name | thisDefIsTheMainOne isMain def])
 
 thisDefIsTheMainOne :: IsMain -> Definition -> Bool
 thisDefIsTheMainOne NotMain _ = False

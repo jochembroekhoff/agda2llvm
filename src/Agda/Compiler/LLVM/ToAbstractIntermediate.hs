@@ -18,14 +18,20 @@ import Agda.Utils.Impossible (__IMPOSSIBLE__)
 import Agda.Utils.Lens
 import Agda.Utils.Maybe (liftMaybe)
 import Agda.Utils.Pretty (prettyShow)
-import Agda.Utils.Tuple (mapSnd)
+import Agda.Utils.Tuple (mapFst, mapSnd)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.State
+import Control.Monad.Writer
 
-type ToAM = StateT (LLVMOptions, Int) TCM
+type ToAM = WriterT [AEntry] (StateT (LLVMOptions, Int) TCM)
 
 class ToAbstractIntermediate a b where
   toA :: a -> ToAM b
+
+-- | Wrapper for execution of @@toA@@, which returns the primary result
+--   and auxiliary entries that were generated.
+runToA :: ToAbstractIntermediate a b => LLVMOptions -> a -> TCM (b, [AEntry])
+runToA opts = (`evalStateT` (opts, 0)) . runWriterT . toA
 
 getNextAndIncrement :: ToAM Int
 getNextAndIncrement = do
@@ -36,7 +42,7 @@ getNextAndIncrement = do
 getOpts :: ToAM LLVMOptions
 getOpts = gets fst
 
-instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
+instance ToAbstractIntermediate Definition (Maybe AIdent) where
   toA def
     | defNoCompilation def || not (usableModality $ getModality def) = return Nothing
   toA def = do
@@ -69,8 +75,8 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
       Record {} -> return Nothing
       Constructor {conSrcCon = chead, conArity = nargs} -> do
         name <- toA $ conName chead
-        let entries = transformCtor name nargs
-        return $ Just (name, entries)
+        tell $ transformCtor name nargs
+        return $ Just name
       AbstractDefn {} -> __IMPOSSIBLE__
       DataOrRecSig {} -> __IMPOSSIBLE__
 
@@ -78,75 +84,70 @@ instance ToAbstractIntermediate QName AIdent where
   toA = return . aIdentFromQName
 
 ---
-transformFunction :: QName -> TTerm -> ToAM (AIdent, [AEntry])
+transformFunction :: QName -> TTerm -> ToAM AIdent
 transformFunction qn tt = do
   qn' <- toA qn
-  (body, otherEntries) <- toA (qn', tt)
+  body <- toA (qn', tt)
   let bodyEntry = AEntryThunk {entryIdent = qn', entryPrivate = False, entryThunk = bodyToThunkMaybeDirect body}
-  return (qn', bodyEntry : otherEntries)
+  tell [bodyEntry]
+  return qn'
 
-transformPrimitive :: QName -> String -> ToAM (AIdent, [AEntry])
+transformPrimitive :: QName -> String -> ToAM AIdent
 transformPrimitive qn primName = do
   qn' <- toA qn
   let primIdent = AIdentRaw $ "agda.prim." ++ primName
       bodyEntry = AEntryAlias {aliasIdent = qn', aliasOf = primIdent}
-  return (qn', [bodyEntry])
+  tell [bodyEntry]
+  return qn'
 
 desugarLet :: TTerm -> TTerm
 desugarLet (TLet value body) = TApp (TLam body) [value]
 desugarLet _ = __IMPOSSIBLE__
 
-instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
+instance ToAbstractIntermediate (AIdent, TTerm) ABody where
   toA (qn, TApp subj args) = do
-    (subjHolder, subjEntries) <- toArg (qn, subj)
-    args' <- traverse (toArg . (qn, )) args
-    let argHolders = map fst args'
-        argEntries = concatMap snd args'
-    return (AAppl subjHolder argHolders, subjEntries ++ argEntries)
+    subjHolder <- toArg (qn, subj)
+    argHolders <- traverse (toArg . (qn, )) args
+    return $ AAppl subjHolder argHolders
   toA (qn, TLam body) = do
     next <- getNextAndIncrement
     let innerName = qn <> AIdent ("--lam-" ++ show next)
-    (innerBody, innerEntries) <- toA (qn, body)
-    return
-      ( AMkValue AValueFn {fnIdent = innerName}
-      , innerEntries ++ [AEntryDirect {entryIdent = innerName, entryPushArg = True, entryBody = innerBody}])
-  toA (_, TLit lit) = return (AMkValue $ AValueLit lit, [])
+    innerBody <- toA (qn, body)
+    tell [AEntryDirect {entryIdent = innerName, entryPushArg = True, entryBody = innerBody}]
+    return $ AMkValue AValueFn {fnIdent = innerName}
+  toA (_, TLit lit) = return $ AMkValue $ AValueLit lit
   toA (qn, let_@TLet {}) = toA (qn, desugarLet let_)
   toA (qn, TCase idx (CaseInfo _ ct) fallback alts) = do
-    (fallbackBody, fallbackEntries) <- toA (qn, fallback)
+    fallbackBody <- toA (qn, fallback)
     case ct of
       CTData {} -> do
-        alts' <- traverse (toA . (qn, )) alts
-        let altMatchPairs = AAData $ map fst alts'
-            altEntries = concatMap snd alts'
-        return (ACase (ARecordIdx idx) altMatchPairs fallbackBody, altEntries ++ fallbackEntries)
+        altMatchPairs <- AAData <$> traverse (toA . (qn, )) alts
+        return $ ACase (ARecordIdx idx) altMatchPairs fallbackBody
       CTNat -> do
-        alts' <- traverse (toA . (qn, )) alts
-        let altMatchPairs = AANat $ map fst alts'
-            altEntries = concatMap snd alts'
-        return (ACase (ARecordIdx idx) altMatchPairs fallbackBody, altEntries ++ fallbackEntries)
+        altMatchPairs <- AANat <$> traverse (toA . (qn, )) alts
+        return $ ACase (ARecordIdx idx) altMatchPairs fallbackBody
       _ -> __IMPOSSIBLE_VERBOSE__ "not implemented yet"
   toA (qn, TCoerce tt) = toA (qn, tt)
-  toA (qn, TError TUnreachable) = return (AError "unreachable", [])
-  toA (qn, TError (TMeta msg)) = return (AError ("meta: " ++ msg), [])
+  toA (qn, TError TUnreachable) = return $ AError "unreachable"
+  toA (qn, TError (TMeta msg)) = return $ AError ("meta: " ++ msg)
   toA (qn, tt) = do
-    (arg, entries) <- toArg (qn, tt)
-    return (AAppl arg [], entries)
+    arg <- toArg (qn, tt)
+    return $ AAppl arg []
 
-instance ToAbstractIntermediate (AIdent, TAlt) ((AIdent, Int, ABody), [AEntry]) where
+instance ToAbstractIntermediate (AIdent, TAlt) (AIdent, Int, ABody) where
   toA (qn, TACon cn arity body) = do
     cn' <- toA cn
     -- TODO: maybe don't pass @qn@, but derived version with suffix?
-    (body', bodyEntries) <- toA (qn, body)
-    return ((cn', arity, body'), bodyEntries)
+    body' <- toA (qn, body)
+    return (cn', arity, body')
   toA _ = __IMPOSSIBLE_VERBOSE__ "didn't expect anything else than TACon in a data-switch"
 
-instance ToAbstractIntermediate (AIdent, TAlt) ((Int, ABody), [AEntry]) where
+instance ToAbstractIntermediate (AIdent, TAlt) (Int, ABody) where
   toA (qn, TALit (LitNat num) body)
     -- TODO: maybe don't pass @qn@, but derived version with suffix?
    = do
-    (body', bodyEntries) <- toA (qn, body)
-    return ((fromIntegral num, body'), bodyEntries)
+    body' <- toA (qn, body)
+    return (fromIntegral num, body')
   toA _ = __IMPOSSIBLE_VERBOSE__ "didn't expect anything else than (TALit (LitNat _) _) in a nat-literal-switch"
 
 -- | Convert a body into a thunk.
@@ -155,29 +156,28 @@ bodyToThunkMaybeDirect :: ABody -> AThunk
 bodyToThunkMaybeDirect (AMkValue value) = AThunkValue value
 bodyToThunkMaybeDirect body = AThunkDelay body
 
-tmpLift :: (AIdent, TTerm) -> String -> ToAM (AArg, [AEntry])
+tmpLift :: (AIdent, TTerm) -> String -> ToAM AArg
 tmpLift info@(qn, tt) kind = do
   next <- getNextAndIncrement
   -- create the body entry 'normally'
-  (body, entries) <- toA info
+  body <- toA info
   -- construct the lifted member and return
   let qn' = qn <> AIdent ("--" ++ kind ++ "_lift-" ++ show next)
       entry = AEntryThunk {entryIdent = qn', entryPrivate = True, entryThunk = bodyToThunkMaybeDirect body}
-  return (AExt qn', entry : entries)
+  tell [entry]
+  return (AExt qn')
 
-toArg :: (AIdent, TTerm) -> ToAM (AArg, [AEntry])
-toArg (_, TVar idx) = return (ARecord $ ARecordIdx idx, [])
-toArg (_, TPrim prim) = return (AExt $ AIdentRaw $ "agda.prim." ++ primIdent prim, [])
-toArg (_, TDef qn) = do
-  qn' <- toA qn
-  return (AExt qn', [])
+toArg :: (AIdent, TTerm) -> ToAM AArg
+toArg (_, TVar idx) = return $ ARecord $ ARecordIdx idx
+toArg (_, TPrim prim) = return $ AExt $ AIdentRaw $ "agda.prim." ++ primIdent prim
+toArg (_, TDef qn) = AExt <$> toA qn
 toArg info@(qn, TApp {}) = tmpLift info "appl"
 toArg info@(qn, TLam {}) = tmpLift info "lam"
 toArg info@(qn, TLit {}) = tmpLift info "lit"
-toArg (_, TCon cn) = return (AExt $ AIdent $ prettyShow cn, [])
+toArg (_, TCon cn) = return $ AExt $ AIdent $ prettyShow cn
 toArg (qn, let_@TLet {}) = toArg (qn, desugarLet let_)
 toArg info@(qn, TCase {}) = tmpLift info "case"
-toArg (_, TErased) = return (AErased, [])
+toArg (_, TErased) = return AErased
 toArg (qn, TCoerce tt) = toArg (qn, tt)
 toArg _ = __IMPOSSIBLE_VERBOSE__ "not implemented"
 
