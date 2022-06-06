@@ -117,8 +117,8 @@ llvmPostModule opts _ main m defs = do
   return $ LLVMModule {entries = defsImported ++ defs'}
 
 llvmCompileDef :: LLVMOptions -> LLVMEnv -> IsMain -> Definition -> TCM [AEntry]
-llvmCompileDef _ _ isMain def = do
-  res <- evalStateT (toA def) 0
+llvmCompileDef opts _ isMain def = do
+  res <- evalStateT (toA def) (opts, 0)
   case res of
     Nothing -> return []
     Just (name, entries) -> return (entries ++ [AEntryMain name | thisDefIsTheMainOne isMain def])

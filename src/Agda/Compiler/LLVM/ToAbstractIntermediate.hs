@@ -3,6 +3,7 @@ module Agda.Compiler.LLVM.ToAbstractIntermediate where
 import Agda.Compiler.Backend
 import Agda.Compiler.LLVM.ASyntax
 import Agda.Compiler.LLVM.ASyntaxUtil
+import Agda.Compiler.LLVM.Options (LLVMOptions(..))
 import Agda.Compiler.LLVM.Pprint (LLVMPretty(llvmPretty))
 import Agda.Compiler.LLVM.RteUtil
 import Agda.Compiler.LLVM.Syntax
@@ -17,13 +18,23 @@ import Agda.Utils.Impossible (__IMPOSSIBLE__)
 import Agda.Utils.Lens
 import Agda.Utils.Maybe (liftMaybe)
 import Agda.Utils.Pretty (prettyShow)
+import Agda.Utils.Tuple (mapSnd)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.State
 
-type ToAM = StateT Int TCM
+type ToAM = StateT (LLVMOptions, Int) TCM
 
 class ToAbstractIntermediate a b where
   toA :: a -> ToAM b
+
+getNextAndIncrement :: ToAM Int
+getNextAndIncrement = do
+  i <- gets snd
+  modify $ mapSnd (+ 1)
+  return i
+
+getOpts :: ToAM LLVMOptions
+getOpts = gets fst
 
 instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
   toA def
@@ -37,9 +48,10 @@ instance ToAbstractIntermediate Definition (Maybe (AIdent, [AEntry])) where
       d@Function {}
         | d ^. funInline -> return Nothing
       Function {} -> do
+        LLVMOptions {llvmEvaluationStrategy = evalStrat} <- getOpts
         tl <-
           liftTCM
-            do v <- toTreeless LazyEvaluation qn
+            do v <- toTreeless evalStrat qn
                mapM normalizeNames v
         liftIO
           do putStr "FUNCTION: "
@@ -92,8 +104,7 @@ instance ToAbstractIntermediate (AIdent, TTerm) (ABody, [AEntry]) where
         argEntries = concatMap snd args'
     return (AAppl subjHolder argHolders, subjEntries ++ argEntries)
   toA (qn, TLam body) = do
-    next <- get
-    modify (1 +)
+    next <- getNextAndIncrement
     let innerName = qn <> AIdent ("--lam-" ++ show next)
     (innerBody, innerEntries) <- toA (qn, body)
     return
@@ -146,8 +157,7 @@ bodyToThunkMaybeDirect body = AThunkDelay body
 
 tmpLift :: (AIdent, TTerm) -> String -> ToAM (AArg, [AEntry])
 tmpLift info@(qn, tt) kind = do
-  next <- get
-  modify (1 +)
+  next <- getNextAndIncrement
   -- create the body entry 'normally'
   (body, entries) <- toA info
   -- construct the lifted member and return
