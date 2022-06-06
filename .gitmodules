@@ -1,3 +1,0 @@
-[submodule "external/agda-extractors"]
-	path = external/agda-extractors
-	url = git@gitlab.ewi.tudelft.nl:jcockx/agda-extractors.git
