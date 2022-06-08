@@ -215,13 +215,12 @@ transformCtor baseName 0 =
 transformCtor baseName n = go n
   where
     (dataIdx, dataCase) = computeCtorIdent baseName
-    levelIdent 0 = baseName
     levelIdent m = baseName <> AIdent ('-' : show m)
     go lvl
       | lvl < 0 = __IMPOSSIBLE__
       | lvl == 0 =
         [ AEntryThunk
-            { entryIdent = levelIdent lvl
+            { entryIdent = baseName
             , entryPrivate = False
             , entryThunk = AThunkDelay $ AMkValue AValueFn {fnIdent = levelIdent n}
             }

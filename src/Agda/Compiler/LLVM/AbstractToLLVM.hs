@@ -19,9 +19,7 @@ instance AToLlvm AIdent LLVMIdent where
   aToLlvm (AIdent ident) = llvmIdent ident
   aToLlvm (AIdentRaw identRaw) = LLVMIdent identRaw
 
-instance AToLlvm (EvaluationStrategy, AEntry) [LLVMEntry]
-  -- TODO: respect the private flag (should correspond to LLVM private modifier)
-                                                                                 where
+instance AToLlvm (EvaluationStrategy, AEntry) [LLVMEntry] where
   aToLlvm (evalStrat, AEntryThunk ident private thunk) = thunkConstructor : thunkEvaluator
     where
       (thunkConstructor, thunkEvaluator) = aToLlvm (ident, private, thunk, evalStrat)
