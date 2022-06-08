@@ -8,7 +8,7 @@ import Agda.Compiler.Common (compileDir)
 import Agda.Compiler.LLVM.ASyntax
 import Agda.Compiler.LLVM.ASyntaxUtil (aIdentFromQName)
 import Agda.Compiler.LLVM.AbstractOpt (AbstractOptimize(abstractOptimize))
-import Agda.Compiler.LLVM.AbstractToLLVM (AToLlvm(aToLlvm))
+import Agda.Compiler.LLVM.AbstractToLLVM (AToLlvm(aToLlvm), runAToLlvm)
 import Agda.Compiler.LLVM.Options
   ( LLVMOptions(llvmEvaluationStrategy, llvmVerboseRuntime)
   , defaultLLVMOptions
@@ -192,4 +192,4 @@ llvmAuxBuiltinRefsModule opts = do
         (idx, kase) = computeCtorIdent $ aIdentFromQName qn
 
 llvmFromAbstract :: LLVMOptions -> AEntry -> [LLVMEntry]
-llvmFromAbstract opts = aToLlvm . (llvmEvaluationStrategy opts, ) . abstractOptimize
+llvmFromAbstract opts = uncurry (:) . runAToLlvm . (llvmEvaluationStrategy opts, ) . abstractOptimize
