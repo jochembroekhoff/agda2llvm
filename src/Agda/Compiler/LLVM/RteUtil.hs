@@ -152,5 +152,10 @@ mkCreatorFnSign ident =
 typeFnEvaluator :: LLVMType
 typeFnEvaluator = LLVMFn {fnRet = typeValuePtr, fnParams = [typeFramePtr, typeThunkPtr], fnVariadic = False}
 
+--- General Types for C Interfacing ---
 typeVoidPtr :: LLVMType
 typeVoidPtr = LLVMPtr $ LLVMSizedInt 8
+
+refSysExit :: LLVMRef
+refSysExit =
+  LLVMGlobal {refName = LLVMIdent "exit", refType = LLVMFn {fnRet = LLVMVoid, fnParams = [i64], fnVariadic = False}}

@@ -346,7 +346,10 @@ instance AToLlvm ((AIdent, Bool, Bool), ABody) LLVMEntry where
           ]
     --
     bodyTemplateBasic cfg primaryBody branchBlocks
-  aToLlvm (cfg@(ident, private, _), AError errorText) = bodyTemplate (ident, private, False) (assignNull "v" "vv")
+  aToLlvm (cfg@(ident, private, _), AError errorText) =
+    bodyTemplate
+      (ident, private, False)
+      ((llvmDiscard $ LLVMCall {callRef = refSysExit, callArgs = [LLVMLit $ LLVMInt 64 1]}) : assignNull "v" "vv")
 
 bodyTemplateBasic :: (AIdent, Bool, Bool) -> [(Maybe LLVMIdent, LLVMInstruction)] -> [LLVMBlock] -> LM LLVMEntry
 bodyTemplateBasic (ident, private, push) beginInstructions blocks = do

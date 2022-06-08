@@ -69,3 +69,9 @@ declare
 declare
 %agda.struct.frame*
 @agda.record.extract(%agda.struct.frame*, i64, %agda.struct.thunk*)
+
+;; Miscenallaneous
+
+declare
+void
+@exit(i64)
