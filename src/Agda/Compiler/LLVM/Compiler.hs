@@ -79,8 +79,12 @@ llvmCommandLineFlags =
       ["strict-evaluation"]
       (NoArg $ optionFlagEvaluationStrategy EagerEvaluation)
       "Evaluate all arguments eagerly"
-  , Option [] ["clang-debug"] (NoArg $ optionFlagClangDebug True) "Call Clang with the debug configuration (default)"
-  , Option [] ["clang-release"] (NoArg $ optionFlagClangDebug False) "Call Clang with the release profile, includes LTO"
+  , Option [] ["clang-debug"] (NoArg $ optionFlagClangDebug True) "Call Clang with the debug configuration"
+  , Option
+      []
+      ["clang-release"]
+      (NoArg $ optionFlagClangDebug False)
+      "Call Clang with the release profile, includes LTO (default)"
   , Option [] ["verbose-runtime"] (NoArg $ optionFlagVerboseRuntime True) "Use verbose LLVM runtime (off by default)"
   ]
 

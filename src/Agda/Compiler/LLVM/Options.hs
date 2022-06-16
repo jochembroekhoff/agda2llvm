@@ -22,7 +22,7 @@ data LLVMEvaluationStrategy
 
 defaultLLVMOptions :: LLVMOptions
 defaultLLVMOptions =
-  LLVMOptions {llvmEvaluationStrategy = LazyEvaluation, llvmClangDebug = True, llvmVerboseRuntime = False}
+  LLVMOptions {llvmEvaluationStrategy = LazyEvaluation, llvmClangDebug = False, llvmVerboseRuntime = False}
 
 optionFlagEvaluationStrategy :: EvaluationStrategy -> Flag LLVMOptions
 optionFlagEvaluationStrategy s o = return $ o {llvmEvaluationStrategy = s}
