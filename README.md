@@ -2,11 +2,17 @@
 
 ## About
 
-agda2llvm is a the practical part of my contribution to the 2022 main edition of CSE3000 'Research Project', i.e. the Bachelor thesis.
-The corresponding paper is yet to be published, but will be linked here once it is.
+agda2llvm is a the practical part of my contribution to the 2022 main edition of [CSE3000](https://cse3000-research-project.github.io) 'Research Project', i.e. the Bachelor thesis.
+The corresponding paper can be found [here](http://resolver.tudelft.nl/uuid:6ed6ad26-18c3-4427-b99a-c6241f7102c7).
 
 Practically, it is an experimental back-end for Agda which emits LLVM IR.
 This, in turn, is compiled and linked by Clang into a native executable binary.
+
+**Disclaimer**:
+The source code in this repository accompanies the paper.
+This repository serves as a reference purpose only.
+No further development from my side is intended.
+Unless noted otherwise, all content is licensed under MIT.
 
 ## Dependencies
 
